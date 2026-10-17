@@ -22,6 +22,12 @@ Next.js 单体减少部署环节；SQLite + Prisma 支持真实持久化和迁�
 
 2026-10-17 当前 [Authentication](https://www.bach.art/api/docs/authentication) 明确记载 AK/SK、HS256 JWT 和 Bearer；旧版 `/docs/videos-bach/v1/text2video` 已跳转到 Pro 页面。指定旧版协议与当前 `/video/v2` 分开，旧版状态明确标记为未验证。无凭证不做实际付费调用，不宣称 Live 已通过。
 
+## 支付方式与成本取舍
+
+2026-10-17 用户提出没有美国银行卡、希望降低成本。增加阿里云百炼 Qwen 分镜 Adapter，默认 `qwen-flash`；阿里云国内站支持支付宝、银联等充值方式。视频继续独立使用 Mock，避免每次验证产品流程都支付视频费用。此选择由当前支付约束和公开价格支持，不代表已证明 Qwen 的分镜质量与任何模型相同或更好。[充值说明](https://help.aliyun.com/zh/document_detail/324650.html)、[模型价格](https://help.aliyun.com/zh/model-studio/model-pricing)
+
+采用非思考 JSON Object + 服务端 Zod/时长验证，不把 JSON 格式能力描述成严格 Schema 保证。输出校验失败最多增加一次修复请求，其他外部错误不自动重试。价格测算明确标记为估算，未执行真实付费验证；不替用户注册、充值或购买套餐。真实视频的低成本候选万相仅记录在 README，暂不扩大实现范围。[结构化输出](https://help.aliyun.com/en/model-studio/qwen-structured-output)
+
 ## 延后事项与迭代
 
 延后参考素材上传、视频拼接、多人协作、更多模型和复杂分析报表。下一步先执行用户测试，观察 Brief 理解、分镜编辑和共享说明的可发现性；收集一致性主观评分，才决定是否增加图像参考或其他 Provider。没有预设效率提升数值。

@@ -26,7 +26,7 @@ I prioritized the complete no-key workflow before real API adapters and analytic
 
 ## Technical Implementation
 
-Next.js, React, TypeScript, Tailwind CSS, Prisma, SQLite, and Zod. Provider interfaces separate storyboard creation from video generation. Tasks preserve the final prompt and profile version, while revision checks protect newer edits. Mock task progression is derived from database timestamps so refreshes and process restarts do not erase its state. Live adapters target OpenAI Structured Outputs and the historical BACH v1 text-to-video contract; real paid calls have not been verified.
+Next.js, React, TypeScript, Tailwind CSS, Prisma, SQLite, and Zod. Provider interfaces separate storyboard creation from video generation. Tasks preserve the final prompt and profile version, while revision checks protect newer edits. Mock task progression is derived from database timestamps so refreshes and process restarts do not erase its state. Live adapters target Alibaba Cloud Qwen, OpenAI Structured Outputs, and the historical BACH v1 text-to-video contract; real paid calls have not been verified. Qwen was added in response to the builder's payment-access and cost constraints, with JSON output revalidated on the server; this does not establish comparative model quality.
 
 ## Challenges
 
@@ -34,7 +34,7 @@ I addressed invalid structured output, duration budgeting, duplicate submissions
 
 ## Evaluation
 
-The core success and failure/retry browser workflows were run successfully before adding live adapters. Unit and integration tests cover parsing, persistence, state progression, provider contracts, access protection, and analytics. The final checks passed 22 business/contract tests, three browser scenarios, a production build, and access-protection and process-restart smoke tests. Exact command results are recorded in TEST_RESULTS.md. Protocol tests use simulated transports; they do not establish live API access, model quality, a deployed service, or business impact. No external user-study findings are claimed.
+The core success and failure/retry browser workflows were run successfully before adding live adapters. Unit and integration tests cover parsing, persistence, state progression, provider contracts, access protection, and analytics. The latest unit/contract suite passed 34 tests, including 12 simulated Qwen contract tests, and the production build passed. Three browser scenarios and access-protection and process-restart smoke tests passed earlier the same day; those checks were not repeated for the Qwen addition. Exact command results are recorded in TEST_RESULTS.md. Protocol tests use simulated transports; they do not establish live API access, model quality, a deployed service, or business impact. No external user-study findings are claimed.
 
 ## Future Improvements
 

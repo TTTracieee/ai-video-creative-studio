@@ -12,6 +12,7 @@ flowchart LR
   Service --> Storyboard[StoryboardProvider]
   Storyboard --> Template[明确标注的模板 Mock]
   Storyboard --> OpenAI[OpenAI Responses / Structured Outputs]
+  Storyboard --> Qwen[阿里云 Qwen / JSON Object + Zod]
   Service --> Video[VideoProvider]
   Video --> Mock[持久化时间驱动 Mock]
   Video --> Bach[旧版 BACH v1 / 待实际验证]
@@ -51,6 +52,8 @@ SQLite 文件被忽略，不提交到 Git。迁移脚本先确保文件和父目
 ## LLM 与共享说明
 
 StoryboardProvider 暴露 generate / regenerateScene。默认 Mock 根据 Brief 产生模板，15 秒三镜头，30 秒五镜头。Live 使用 OpenAI Responses 的 strict JSON Schema，模型由 OPENAI_MODEL 设置，服务端进行 Zod 及镜头数/总时长校验。JSON 或业务约束无效最多重新请求一次；拒绝、截断、网络错误和限流不自动重复。失败保留旧分镜。
+
+低成本替代通过 `STORYBOARD_PROVIDER=qwen` 选择：直接使用阿里云兼容 Chat Completions 接口，无需 OpenAI 账号。`DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL` 只在服务端读取，Base URL 由用户从对应业务空间/地域控制台复制；仅接受官方 HTTPS 地址且禁止重定向。默认 `qwen-flash`，`enable_thinking=false`、`response_format=json_object`、最多 8,192 输出 Token；系统 Prompt 包含 JSON 关键字及目标 Schema。JSON Object 不保证结构，服务端仍执行相同的 Zod/业务校验，至多修复一次。拒绝、截断、无内容、无效响应外壳、HTTP 错误、超时不自动重试，不转发原始提供方错误或密钥。Qwen 的分镜/事件模式归为 live，视频 Provider 独立配置。真实付费接通情况见 TEST_RESULTS.md。
 
 Profile 的四个字段是共享文本说明。最终 Prompt = 镜头 Prompt + 当前 Profile + 镜头一致性备注。编辑 Profile 不重写镜头 Prompt；生成任务保存 Profile 版本与最终 Prompt 快照。它不是身份锁定、图像参考或一致性质量保证。
 
