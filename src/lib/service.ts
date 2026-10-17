@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
@@ -6,23 +7,26 @@ import {
   briefSchema,
   composePrompt,
   defaultProfile,
+  editableSceneSchema,
+  readScene,
+  firstCutSnapshotSchema,
+  type EditableScene,
   profileSchema,
   revisionSchema,
   sceneRecordSchema,
   sceneSchema,
   snapshotSchema,
-  type SceneContent,
   type Snapshot,
 } from "./domain";
 import { storyboardProvider, videoProvider } from "./providers";
 import { validateCapabilities } from "./providers/types";
 import { projectProgress, selectionKey, selectionSnapshot } from "./project-state";
-import { removeProjectMedia } from "./media";
+import { mediaPath, removeProjectMedia } from "./media";
 
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 type Tx = Prisma.TransactionClient;
 type Context = { sessionId: string };
-async function event(
+export async function event(
   tx: Tx,
   project: { id: string; origin: string },
   context: Context,
@@ -53,14 +57,20 @@ const projectInclude = {
 function projectView(p: Prisma.ProjectGetPayload<{ include: typeof projectInclude }>) {
   const brief = briefSchema.parse(p.brief);
   const scenes = p.scenes.map((s) => ({
-    ...sceneSchema.parse(s.content),
+    ...readScene(s.content),
     id: s.id,
     selectedGenerationTaskId: s.selectedGenerationTaskId,
   }));
   const snapshot = selectionSnapshot(brief, scenes, p.tasks);
   const key = snapshot && selectionKey(snapshot);
-  const output = p.outputs.find((output) => output.selectionKey === key) || p.outputs[0] || null;
-  const current = !!output && output.selectionKey === key;
+  const outputMatches = (output: (typeof p.outputs)[number]) => {
+    const parsed = firstCutSnapshotSchema.safeParse(output.snapshot);
+    return parsed.success && selectionKey(parsed.data) === key;
+  };
+  const output = p.outputs.find(outputMatches) || p.outputs[0] || null;
+  const current = !!output && outputMatches(output);
+  const outputAvailable =
+    output?.status === "completed" && !!output.mediaPath && existsSync(mediaPath(output.mediaPath));
   const selectedCount = scenes.filter((scene) =>
     p.tasks.some(
       (task) =>
@@ -76,7 +86,18 @@ function projectView(p: Prisma.ProjectGetPayload<{ include: typeof projectInclud
     ...p,
     brief,
     profile: profileSchema.parse(p.profile),
-    scenes,
+    scenes: scenes.map((scene) => ({
+      ...scene,
+      thumbnailUrl: p.tasks.some((task) => task.sceneId === scene.id && task.status === "completed")
+        ? `/api/media/thumbnails/${scene.selectedGenerationTaskId || p.tasks.find((task) => task.sceneId === scene.id && task.status === "completed")!.id}`
+        : null,
+    })),
+    thumbnailUrl: (() => {
+      const task =
+        p.tasks.find((task) => task.id === scenes[0]?.selectedGenerationTaskId) ||
+        p.tasks.find((task) => task.status === "completed" && task.resultUrl);
+      return task ? `/api/media/thumbnails/${task.id}` : null;
+    })(),
     tasks: p.tasks.map((task) => ({
       ...task,
       previewUrl:
@@ -84,14 +105,20 @@ function projectView(p: Prisma.ProjectGetPayload<{ include: typeof projectInclud
     })),
     output: output && {
       ...output,
-      mediaUrl: output.status === "completed" ? `/api/media/outputs/${output.id}` : null,
+      mediaUrl: outputAvailable ? `/api/media/outputs/${output.id}` : null,
     },
     outputIsCurrent: current,
     progress: {
       sceneCount: scenes.length,
       selectedCount,
       activeCount,
-      label: projectProgress(scenes.length, selectedCount, activeCount, output?.status, current),
+      label: projectProgress(
+        scenes.length,
+        selectedCount,
+        activeCount,
+        output?.status === "completed" && !outputAvailable ? "failed" : output?.status,
+        current,
+      ),
     },
     _count: { scenes: scenes.length, tasks: p.tasks.length },
   };
@@ -217,7 +244,7 @@ export async function duplicatePlan(db: PrismaClient, id: string, context: Conte
       db,
       copy.id,
       0,
-      p.scenes.map((scene) => ({ content: sceneSchema.parse(scene) })),
+      p.scenes.map((scene) => ({ content: editableSceneSchema.parse(scene) })),
       context,
       p.storyboardMode || undefined,
     );
@@ -261,11 +288,91 @@ export async function updateProject(
     return p;
   });
 }
+async function writeScenes(tx: Tx, id: string, scenes: { id?: string; content: EditableScene }[]) {
+  const existing = await tx.scene.findMany({ where: { projectId: id } });
+  const keepIds = scenes.flatMap((s) =>
+    s.id && existing.some((e) => e.id === s.id) ? [s.id] : [],
+  );
+  await tx.scene.deleteMany({ where: { projectId: id, id: { notIn: keepIds } } });
+  for (const [position, scene] of scenes.entries()) {
+    if (scene.id && keepIds.includes(scene.id))
+      await tx.scene.update({
+        where: { id: scene.id },
+        data: { position, content: json(scene.content) },
+      });
+    else await tx.scene.create({ data: { projectId: id, position, content: json(scene.content) } });
+  }
+}
+
+export async function savePlan(db: PrismaClient, id: string, input: unknown, context: Context) {
+  const data = z
+    .object({
+      revision: revisionSchema,
+      name: z.string().trim().min(1).max(150),
+      brief: briefSchema,
+      profile: profileSchema,
+      scenes: z.array(sceneRecordSchema).max(12),
+    })
+    .parse(input);
+  if (new Set(data.scenes.map((scene) => scene.id)).size !== data.scenes.length)
+    throw new AppError("DUPLICATE_SCENE", "Scene IDs must be unique.", 422);
+  await db.$transaction(async (tx) => {
+    const current = await tx.project.findUnique({ where: { id }, include: { scenes: true } });
+    if (!current) throw new AppError("NOT_FOUND", "Project not found.", 404);
+    if (
+      data.scenes.some(
+        (scene) =>
+          !scene.id.startsWith("draft-") && !current.scenes.some((old) => old.id === scene.id),
+      )
+    )
+      throw new AppError(
+        "INVALID_SCENE",
+        "Reload the plan: a scene does not belong to this project.",
+        422,
+      );
+    const briefChanged =
+      JSON.stringify(briefSchema.parse(current.brief)) !== JSON.stringify(data.brief);
+    const profileChanged =
+      JSON.stringify(profileSchema.parse(current.profile)) !== JSON.stringify(data.profile);
+    const changed = await tx.project.updateMany({
+      where: { id, revision: data.revision },
+      data: {
+        revision: { increment: 1 },
+        name: data.name,
+        brief: json(data.brief),
+        profile: json(data.profile),
+        ...(briefChanged ? { briefUpdatedAt: new Date() } : {}),
+        ...(profileChanged ? { profileVersion: { increment: 1 } } : {}),
+      },
+    });
+    if (!changed.count)
+      throw new AppError(
+        "VERSION_CONFLICT",
+        "Plan changed elsewhere. Your edits are still here; reload before replacing them.",
+        409,
+      );
+    await writeScenes(
+      tx,
+      id,
+      data.scenes.map(({ id, ...content }) => ({ id, content })),
+    );
+    const project = await tx.project.findUniqueOrThrow({ where: { id } });
+    await event(tx, project, context, "scene_edited", project.storyboardMode || "neutral", {
+      sceneCount: data.scenes.length,
+    });
+    if (profileChanged)
+      await event(tx, project, context, "consistency_profile_updated", "neutral", {
+        profileVersion: project.profileVersion,
+      });
+  });
+  return getProject(db, id);
+}
+
 async function replaceScenes(
   db: PrismaClient,
   id: string,
   revision: number,
-  scenes: { id?: string; content: SceneContent }[],
+  scenes: { id?: string; content: EditableScene }[],
   context: Context,
   mode?: string,
 ) {
@@ -283,20 +390,7 @@ async function replaceScenes(
         "Storyboard changed. Reload to keep the latest edits.",
         409,
       );
-    const existing = await tx.scene.findMany({ where: { projectId: id } });
-    const keepIds = scenes.flatMap((s) =>
-      s.id && existing.some((e) => e.id === s.id) ? [s.id] : [],
-    );
-    await tx.scene.deleteMany({ where: { projectId: id, id: { notIn: keepIds } } });
-    for (const [position, scene] of scenes.entries()) {
-      if (scene.id && keepIds.includes(scene.id))
-        await tx.scene.update({
-          where: { id: scene.id },
-          data: { position, content: json(scene.content) },
-        });
-      else
-        await tx.scene.create({ data: { projectId: id, position, content: json(scene.content) } });
-    }
+    await writeScenes(tx, id, scenes);
     const p = await tx.project.findUniqueOrThrow({ where: { id } });
     await event(
       tx,
@@ -324,7 +418,7 @@ export async function generateBoard(
     db,
     id,
     revision,
-    scenes.map((content) => ({ content })),
+    scenes.map((content) => ({ content: editableSceneSchema.parse(content) })),
     context,
     provider.mode,
   );
@@ -371,7 +465,14 @@ export async function regenerateScene(
     throw new AppError("INVALID_DURATION", "Regenerated scene changed the duration.", 422);
   const scenes = p.scenes.map((s, i) => ({
     id: s.id,
-    content: i === index ? generated : sceneSchema.parse(s),
+    content:
+      i === index
+        ? editableSceneSchema.parse({
+            ...generated,
+            promptMode: s.promptMode,
+            promptOverride: s.promptOverride,
+          })
+        : editableSceneSchema.parse(s),
   }));
   await replaceScenes(db, id, revision, scenes, context);
   return getProject(db, id);
@@ -514,7 +615,7 @@ export async function startTasks(db: PrismaClient, id: string, input: unknown, c
       sceneId: scene.id,
       key: `${data.idempotencyKey}:${scene.id}`,
       snapshot: {
-        scene: sceneSchema.parse(scene),
+        scene: editableSceneSchema.parse(scene),
         profile: p.profile,
         profileVersion: p.profileVersion,
         finalPrompt: composePrompt(scene, p.profile),
@@ -620,7 +721,7 @@ export async function retryTask(db: PrismaClient, id: string, input: unknown, co
 export async function reviewTask(db: PrismaClient, id: string, input: unknown, context: Context) {
   const review = z
     .object({
-      rating: z.number().int().min(1).max(5),
+      rating: z.number().int().min(1).max(5).nullable().optional(),
       feedback: z.string().trim().max(3000).default(""),
     })
     .parse(input);
@@ -631,13 +732,17 @@ export async function reviewTask(db: PrismaClient, id: string, input: unknown, c
       throw new AppError("NOT_COMPLETED", "Rate a completed result.", 409);
     const result = await tx.review.upsert({
       where: { taskId: id },
-      update: review,
+      update: {
+        feedback: review.feedback,
+        ...(review.rating !== undefined ? { rating: review.rating } : {}),
+      },
       create: { ...review, taskId: id },
     });
-    await event(tx, task.project, context, "result_rated", task.mode, {
-      taskId: id,
-      rating: review.rating,
-    });
+    if (review.rating != null)
+      await event(tx, task.project, context, "result_rated", task.mode, {
+        taskId: id,
+        rating: review.rating,
+      });
     return result;
   });
 }
@@ -653,4 +758,30 @@ export async function exportProject(db: PrismaClient, id: string, context: Conte
       "Project metadata, selected versions and first-cut snapshots. Download MP4 separately; JSON does not embed media. Illustrative test footage is not newly model-generated.",
     project: { ...p, scenes: p.scenes.map((scene, i) => ({ ...scene, sceneNumber: i + 1 })) },
   };
+}
+
+export async function recordMP4Export(
+  db: PrismaClient,
+  outputId: string,
+  context: Context,
+  exportId: string,
+) {
+  z.uuid().parse(exportId);
+  await db.$transaction(async (tx) => {
+    const output = await tx.projectOutput.findUniqueOrThrow({
+      where: { id: outputId },
+      include: { project: true },
+    });
+    if (output.status !== "completed")
+      throw new AppError("NOT_READY", "The first cut is not ready to export.", 409);
+    await event(
+      tx,
+      output.project,
+      context,
+      "mp4_exported",
+      output.mode,
+      { outputId },
+      `mp4:${outputId}:${exportId}`,
+    );
+  });
 }

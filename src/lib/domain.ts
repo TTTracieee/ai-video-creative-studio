@@ -14,7 +14,7 @@ export const briefSchema = z.object({
 });
 export const profileSchema = z.object({
   characterIdentity: z.string().trim().max(1200),
-  productAppearance: z.string().trim().max(1200),
+  productAppearance: z.string().trim().max(2000),
   brandElements: z.string().trim().max(1200),
   visualStyle: z.string().trim().max(1200),
 });
@@ -29,11 +29,39 @@ export const sceneSchema = z.object({
   mood: required.max(500),
   prompt: required.max(10000),
 });
-export const sceneRecordSchema = sceneSchema.extend({ id: z.string().min(1) });
+export const editableSceneSchema = sceneSchema
+  .extend({
+    promptMode: z.enum(["structured", "override"]).default("structured"),
+    promptOverride: z.string().trim().max(10000).default(""),
+  })
+  .superRefine((scene, ctx) => {
+    if (scene.promptMode === "override" && !scene.promptOverride.trim())
+      ctx.addIssue({
+        code: "custom",
+        path: ["promptOverride"],
+        message: "Enter an override or switch to structured editing.",
+      });
+  });
+export const sceneRecordSchema = editableSceneSchema.safeExtend({ id: z.string().min(1) });
+export type EditableScene = z.infer<typeof editableSceneSchema>;
+// Preserve existing hand-edited prompts explicitly; historical task snapshots stay untouched.
+export function readScene(value: unknown): EditableScene {
+  const old = sceneSchema.parse(value);
+  if (!value || typeof value !== "object" || !("promptMode" in value))
+    return editableSceneSchema.parse({
+      ...old,
+      promptMode: "override",
+      promptOverride: old.prompt,
+    });
+  return editableSceneSchema.parse(value);
+}
 export const boardSchema = z.object({ scenes: z.array(sceneSchema).min(3).max(5) });
 export const revisionSchema = z.number().int().nonnegative();
 export const snapshotSchema = z.object({
-  scene: sceneSchema,
+  scene: sceneSchema.extend({
+    promptMode: z.enum(["structured", "override"]).optional(),
+    promptOverride: z.string().optional(),
+  }),
   profile: profileSchema,
   profileVersion: z.number().int(),
   finalPrompt: z.string(),
@@ -74,20 +102,86 @@ export const sampleBrief: Brief = {
   aspectRatio: "9:16",
   targetPlatform: "Instagram Reels",
 };
+export const emptyBrief: Brief = {
+  brandName: "",
+  productDescription: "",
+  targetAudience: "",
+  marketingObjective: "",
+  creativeConcept: "",
+  visualStyle: "",
+  targetPlatform: "",
+  duration: 15,
+  aspectRatio: "9:16",
+};
 export function defaultProfile(brief: Brief): Profile {
   return {
-    characterIdentity:
-      "One young professional, short dark hair, beige knit sweater. Keep their appearance consistent across scenes.",
+    characterIdentity: "",
     productAppearance: brief.productDescription,
-    brandElements: `${brief.brandName}; cream packaging, amber label, plain ceramic cup. Avoid inventing additional logos.`,
-    visualStyle: `${brief.visualStyle}; warm amber highlights, natural textures, soft morning light.`,
+    brandElements: brief.brandName
+      ? `${brief.brandName}. Use only brand details supplied in the brief.`
+      : "",
+    visualStyle: brief.visualStyle,
   };
 }
+export const sceneDirectionFields = [
+  ["visualDescription", "Visual Description"],
+  ["subject", "Subject"],
+  ["cameraMovement", "Camera Movement"],
+  ["lighting", "Lighting"],
+  ["mood", "Mood"],
+  ["consistencyNotes", "Scene Notes"],
+] as const;
+export function structuredScenePrompt(
+  scene: Pick<SceneContent, (typeof sceneDirectionFields)[number][0]>,
+) {
+  return sceneDirectionFields.map(([key, label]) => `${label}: ${scene[key]}`).join("\n");
+}
 export function composePrompt(
-  scene: Pick<SceneContent, "prompt" | "consistencyNotes">,
+  scene: SceneContent & { promptMode?: "structured" | "override"; promptOverride?: string },
   profile: Profile,
 ): string {
-  return `${scene.prompt}\n\nShared visual consistency instructions (guidance, not a guarantee):\nCharacter identity: ${profile.characterIdentity || "Not specified"}\nProduct appearance: ${profile.productAppearance || "Not specified"}\nBrand elements: ${profile.brandElements || "Not specified"}\nVisual style: ${profile.visualStyle || "Not specified"}\nScene consistency notes: ${scene.consistencyNotes || "None"}`;
+  const content =
+    scene.promptMode === "override" ? scene.promptOverride?.trim() : structuredScenePrompt(scene);
+  if (scene.promptMode === "override" && !content)
+    throw new AppError("EMPTY_OVERRIDE", "Enter a prompt override or use structured editing.", 422);
+  const direction = [
+    ["Character", profile.characterIdentity],
+    ["Product", profile.productAppearance],
+    ["Brand", profile.brandElements],
+    ["Style", profile.visualStyle],
+  ]
+    .filter(([, value]) => !!value)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n");
+  return `${direction ? `Shared direction (identity, product, brand and style take precedence):\n${direction}\n\n` : ""}Scene instructions${scene.promptMode === "override" ? " (explicit override)" : ""}:\n${content}`;
+}
+export function planDirtyRegions(
+  saved: { name: string; brief: Brief; profile: Profile; scenes: SceneRecord[] },
+  draft: { name: string; brief: Brief; profile: Profile; scenes: SceneRecord[] },
+) {
+  const changes: string[] = [];
+  if (saved.name !== draft.name || JSON.stringify(saved.brief) !== JSON.stringify(draft.brief))
+    changes.push("Brief");
+  if (JSON.stringify(saved.profile) !== JSON.stringify(draft.profile))
+    changes.push("Creative Direction");
+  if (
+    JSON.stringify(
+      saved.scenes.map((s) =>
+        Object.fromEntries(
+          Object.keys(sceneRecordSchema.shape).map((key) => [key, s[key as keyof SceneRecord]]),
+        ),
+      ),
+    ) !==
+    JSON.stringify(
+      draft.scenes.map((s) =>
+        Object.fromEntries(
+          Object.keys(sceneRecordSchema.shape).map((key) => [key, s[key as keyof SceneRecord]]),
+        ),
+      ),
+    )
+  )
+    changes.push("Scenes");
+  return changes;
 }
 export function parseStoryboard(value: unknown, brief: Brief): SceneContent[] {
   const parsed = boardSchema.parse(typeof value === "string" ? JSON.parse(value) : value);

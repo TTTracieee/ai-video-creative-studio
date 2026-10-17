@@ -1,5 +1,5 @@
 import { createReadStream } from "node:fs";
-import { access, mkdir, open, rename, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, open, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -285,4 +285,52 @@ export async function videoResponse(path: string, request: Request, filename = "
       : (Readable.toWeb(createReadStream(path, { start, end })) as ReadableStream<Uint8Array>),
     { status: range ? 206 : 200, headers },
   );
+}
+
+export async function thumbnailResponse(db: PrismaClient, task: GenerationTask, request: Request) {
+  const destination = mediaPath(`${safeId(task.projectId)}/thumbnails/${safeId(task.id)}.jpg`);
+  if (!(await exists(destination))) {
+    const clip = await cacheClip(db, task);
+    await mkdir(dirname(destination), { recursive: true });
+    const temporary = `${destination}.${randomUUID()}.jpg`;
+    try {
+      await run(
+        process.env.FFMPEG_PATH || "ffmpeg",
+        [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-nostdin",
+          "-y",
+          "-i",
+          clip,
+          "-frames:v",
+          "1",
+          "-vf",
+          "scale=640:640:force_original_aspect_ratio=decrease",
+          "-q:v",
+          "3",
+          temporary,
+        ],
+        { timeout: 15000, maxBuffer: 1024 * 1024 },
+      );
+      await rename(temporary, destination);
+    } catch {
+      throw new AppError(
+        "THUMBNAIL_UNAVAILABLE",
+        "The preview image is unavailable. The video is unchanged.",
+        422,
+      );
+    } finally {
+      await rm(temporary, { force: true }).catch(() => {});
+    }
+  }
+  const bytes = await readFile(destination);
+  return new Response(request.method === "HEAD" ? null : bytes, {
+    headers: {
+      "Content-Type": "image/jpeg",
+      "Content-Length": String(bytes.length),
+      "Cache-Control": "private, max-age=86400",
+    },
+  });
 }

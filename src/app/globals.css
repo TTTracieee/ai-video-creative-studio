@@ -1885,3 +1885,127 @@ label .field-help {
     font-size: 11px;
   }
 }
+
+/* Scene editing and contextual actions */
+.media-thumbnail {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16/7;
+  overflow: hidden;
+  background: #e9eeeb;
+}
+.media-thumbnail img {
+  object-fit: cover;
+}
+.neutral-thumbnail {
+  width: 100%;
+  height: 100%;
+  min-height: 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #65766a;
+  background: linear-gradient(140deg, #edf2ed, #e0e8e3);
+  font-size: 12px;
+}
+.scene-fields {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.scene-fields:disabled {
+  opacity: 0.55;
+}
+.scene-fields label,
+.scene-advanced label {
+  display: block;
+  margin-bottom: 14px;
+}
+.scene-advanced {
+  margin: 18px 0;
+}
+.scene-advanced summary,
+.cut-details summary,
+.direction-help summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #536c5b;
+}
+.override-toggle {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+.override-toggle input {
+  width: auto;
+}
+.plan-save-bar {
+  background: #edf3ec;
+  border: 1px solid #dce6d8;
+  padding: 18px 22px;
+  border-radius: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 24px;
+}
+.plan-save-bar p {
+  font-size: 12px;
+  color: #607261;
+  margin: 6px 0 0;
+  max-width: 660px;
+}
+.project-more {
+  position: relative;
+}
+.project-more summary {
+  list-style: none;
+  cursor: pointer;
+}
+.more-menu {
+  position: absolute;
+  right: 0;
+  z-index: 20;
+  top: calc(100% + 8px);
+  background: white;
+  border: 1px solid #dce4df;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 8px 28px #213d2518;
+  width: 220px;
+  display: grid;
+  gap: 16px;
+}
+.danger-text {
+  color: #a64335 !important;
+}
+.cut-details {
+  margin-top: 20px;
+  font-size: 12px;
+  color: #607261;
+}
+.direction-help {
+  font-size: 12px;
+  color: #607261;
+  margin-top: 18px;
+}
+.metric-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+@media (max-width: 700px) {
+  .plan-save-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .plan-save-bar .btn {
+    width: 100%;
+  }
+  .more-menu {
+    right: 0;
+  }
+}

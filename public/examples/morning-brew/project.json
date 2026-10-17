@@ -34,7 +34,9 @@
         "cameraMovement": "Slow push-in from medium shot to close-up on face",
         "lighting": "Warm amber highlights, soft diffused morning sun",
         "mood": "Serene, contemplative, inviting",
-        "prompt": "Cinematic 9:16 video of a young professional with short dark hair wearing a beige knit sweater sitting at a wooden table by a window with sheer curtains. Soft warm morning light illuminates their face. Slow camera push-in. High-quality, realistic, peaceful atmosphere."
+        "prompt": "Cinematic 9:16 video of a young professional with short dark hair wearing a beige knit sweater sitting at a wooden table by a window with sheer curtains. Soft warm morning light illuminates their face. Slow camera push-in. High-quality, realistic, peaceful atmosphere.",
+        "promptMode": "structured",
+        "promptOverride": "Cinematic 9:16 video of a young professional with short dark hair wearing a beige knit sweater sitting at a wooden table by a window with sheer curtains. Soft warm morning light illuminates their face. Slow camera push-in. High-quality, realistic, peaceful atmosphere."
       },
       "selectedGenerationTaskId": "example-morning-brew-v1-task-1"
     },
@@ -50,7 +52,9 @@
         "cameraMovement": "Static macro shot focusing on steam and liquid flow",
         "lighting": "Backlit steam, warm amber glow on packaging",
         "mood": "Sensory, rich, intimate",
-        "prompt": "Macro cinematic shot of hands pouring coffee from a cream-colored bag with an amber 'Morning Brew' label into a plain white ceramic cup. Visible rising steam backlit by warm morning light. Focus on texture and liquid movement. 9:16 aspect ratio."
+        "prompt": "Macro cinematic shot of hands pouring coffee from a cream-colored bag with an amber 'Morning Brew' label into a plain white ceramic cup. Visible rising steam backlit by warm morning light. Focus on texture and liquid movement. 9:16 aspect ratio.",
+        "promptMode": "structured",
+        "promptOverride": "Macro cinematic shot of hands pouring coffee from a cream-colored bag with an amber 'Morning Brew' label into a plain white ceramic cup. Visible rising steam backlit by warm morning light. Focus on texture and liquid movement. 9:16 aspect ratio."
       },
       "selectedGenerationTaskId": "example-morning-brew-v1-task-2"
     },
@@ -66,7 +70,9 @@
         "cameraMovement": "Medium shot holding steady then slight zoom out",
         "lighting": "Consistent warm morning light, soft shadows",
         "mood": "Content, satisfied, confident",
-        "prompt": "Cinematic shot of the same young professional in beige sweater taking a sip from a ceramic cup, smiling warmly at the camera. Warm lighting matches previous scenes. Text overlay 'Morning Brew' appears elegantly. Fade to black. 9:16 vertical format."
+        "prompt": "Cinematic shot of the same young professional in beige sweater taking a sip from a ceramic cup, smiling warmly at the camera. Warm lighting matches previous scenes. Text overlay 'Morning Brew' appears elegantly. Fade to black. 9:16 vertical format.",
+        "promptMode": "structured",
+        "promptOverride": "Cinematic shot of the same young professional in beige sweater taking a sip from a ceramic cup, smiling warmly at the camera. Warm lighting matches previous scenes. Text overlay 'Morning Brew' appears elegantly. Fade to black. 9:16 vertical format."
       },
       "selectedGenerationTaskId": "example-morning-brew-v1-task-3"
     }

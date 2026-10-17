@@ -21,9 +21,11 @@ export interface AnalyticsResult {
   ratingCount: number;
   averageDuration: number | null;
   taskCount: number;
+  firstCutsBuilt: number;
+  mp4Exports: number;
 }
 export const analyticsFilterSchema = z.object({
-  mode: z.enum(["mock", "live"]).default("mock"),
+  mode: z.enum(["mock", "live", "mixed"]).default("mock"),
   origin: z.enum(["user", "demo"]).default("user"),
   from: z.iso.datetime().optional(),
   to: z.iso.datetime().optional(),
@@ -38,7 +40,7 @@ export async function getAnalytics(
     to = f.to ? new Date(f.to) : now;
   if (from > to)
     throw new AppError("INVALID_DATE_RANGE", "Start date must be before end date.", 422);
-  const [projects, tasks] = await Promise.all([
+  const [projects, tasks, built, exports] = await Promise.all([
     db.project.findMany({
       where: { origin: f.origin, createdAt: { gte: from, lte: to } },
       select: {
@@ -52,6 +54,24 @@ export async function getAnalytics(
       where: { mode: f.mode, createdAt: { gte: from, lte: to }, project: { origin: f.origin } },
       include: { review: true },
     }),
+    db.event.count({
+      where: {
+        name: "first_cut_built",
+        mode: f.mode,
+        origin: f.origin,
+        timestamp: { gte: from, lte: to },
+        project: { origin: f.origin },
+      },
+    }),
+    db.event.count({
+      where: {
+        name: "mp4_exported",
+        mode: f.mode,
+        origin: f.origin,
+        timestamp: { gte: from, lte: to },
+        project: { origin: f.origin },
+      },
+    }),
   ]);
   const converted = projects.filter((p) => p.events.length > 0).length;
   // A historical end date only counts terminal states reached by that time.
@@ -59,7 +79,7 @@ export async function getAnalytics(
   const completed = terminal.filter((t) => t.status === "completed"),
     failed = terminal.filter((t) => t.status === "failed");
   const ratings = completed.flatMap((t) =>
-    t.review && t.review.updatedAt <= to ? [t.review.rating] : [],
+    t.review && t.review.rating != null && t.review.updatedAt <= to ? [t.review.rating] : [],
   );
   const unfinished = tasks.filter((t) => !terminal.some((x) => x.id === t.id));
   return {
@@ -86,5 +106,7 @@ export async function getAnalytics(
         ) / completed.length
       : null,
     taskCount: tasks.length,
+    firstCutsBuilt: built,
+    mp4Exports: exports,
   };
 }

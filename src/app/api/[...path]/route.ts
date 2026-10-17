@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { db } from "@/lib/db";
 import { AppError } from "@/lib/domain";
 import * as service from "@/lib/service";
@@ -8,7 +8,7 @@ import { videoProvider, storyboardProvider } from "@/lib/providers";
 import { getAnalytics } from "@/lib/analytics";
 import { assertSameOrigin, authorized, AUTH_COOKIE, passwordRequired } from "@/lib/auth";
 import { buildFirstCut } from "@/lib/first-cut";
-import { cacheClip, mediaPath, videoResponse } from "@/lib/media";
+import { cacheClip, mediaPath, videoResponse, thumbnailResponse } from "@/lib/media";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +24,11 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
       throw new AppError("UNAUTHORIZED", "Sign in to access this private studio.", 401);
     const method = request.method;
     if (root === "media" && ["GET", "HEAD"].includes(method)) {
+      if (id === "thumbnails") {
+        const task = await db.generationTask.findUnique({ where: { id: action } });
+        if (!task) throw new AppError("NOT_FOUND", "Clip not found.", 404);
+        return await thumbnailResponse(db, task, request);
+      }
       if (id === "tasks") {
         const task = await db.generationTask.findUnique({ where: { id: action } });
         if (!task) throw new AppError("NOT_FOUND", "Clip not found.", 404);
@@ -36,11 +41,21 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
         });
         if (!output?.mediaPath || output.status !== "completed")
           throw new AppError("NOT_FOUND", "First cut not found.", 404);
-        return await videoResponse(
+        const exportId = request.nextUrl.searchParams.get("exportId");
+        if (exportId) z.uuid().parse(exportId);
+        const response = await videoResponse(
           mediaPath(output.mediaPath),
           request,
           `${output.project.name}-first-cut.mp4`,
         );
+        if (
+          method === "GET" &&
+          request.nextUrl.searchParams.get("download") === "1" &&
+          exportId &&
+          response.ok
+        )
+          await service.recordMP4Export(db, output.id, context, exportId);
+        return response;
       }
       throw new AppError("NOT_FOUND", "Media not found.", 404);
     }
@@ -86,10 +101,12 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
       data = await service.updateProject(db, id, body, context);
     else if (root === "projects" && id && !action && method === "DELETE")
       data = await service.deleteProject(db, id, body);
+    else if (root === "projects" && action === "plan" && method === "PUT")
+      data = await service.savePlan(db, id, body, context);
     else if (root === "projects" && action === "duplicate" && method === "POST")
       data = await service.duplicatePlan(db, id, context);
     else if (root === "projects" && action === "first-cut" && method === "POST")
-      data = await buildFirstCut(db, id, body);
+      data = await buildFirstCut(db, id, body, context);
     else if (root === "projects" && action === "storyboard" && method === "POST")
       data = await service.generateBoard(db, id, body, context);
     else if (root === "projects" && action === "storyboard" && method === "PUT")

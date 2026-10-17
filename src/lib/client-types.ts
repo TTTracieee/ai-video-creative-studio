@@ -15,7 +15,7 @@ export interface TaskView {
   errorCode: string | null;
   errorMessage: string | null;
   retryOfId: string | null;
-  review: { rating: number; feedback: string } | null;
+  review: { rating: number | null; feedback: string } | null;
   project?: { name: string };
 }
 export interface ProjectView {
@@ -31,8 +31,12 @@ export interface ProjectView {
   briefUpdatedAt: string;
   createdAt: string;
   updatedAt: string;
-  scenes: (SceneRecord & { selectedGenerationTaskId: string | null })[];
+  scenes: (SceneRecord & {
+    selectedGenerationTaskId: string | null;
+    thumbnailUrl: string | null;
+  })[];
   tasks: TaskView[];
+  thumbnailUrl: string | null;
   output: OutputView | null;
   outputIsCurrent: boolean;
   progress: { sceneCount: number; selectedCount: number; activeCount: number; label: string };

@@ -1,7 +1,21 @@
 "use client";
+import { useState } from "react";
 import { Download, Film, Loader2 } from "lucide-react";
 import type { ProjectView } from "@/lib/client-types";
-
+function MP4Export({ url }: { url: string }) {
+  return (
+    <a
+      className="btn primary"
+      href={`${url}?download=1`}
+      onClick={(event) => {
+        event.currentTarget.href = `${url}?download=1&exportId=${crypto.randomUUID()}`;
+      }}
+    >
+      <Download size={16} />
+      Export MP4
+    </a>
+  );
+}
 export default function FirstCutPreview({
   project,
   busy,
@@ -16,17 +30,23 @@ export default function FirstCutPreview({
   onGenerate: () => void;
 }) {
   const { output, outputIsCurrent, progress } = project;
+  const [failedMedia, setFailedMedia] = useState<string | null>(null);
   const ready = !!project.scenes.length && progress.selectedCount === project.scenes.length;
+  const current = outputIsCurrent && output?.status === "completed" && !!output.mediaUrl;
+  const processing = output?.status === "processing";
   return (
     <>
       <div className="section-heading">
         <div>
           <h2>Your first cut.</h2>
-          <p className="muted">A draft assembled from your selected scenes, in storyboard order.</p>
+          <p className="muted">Your selected scenes, assembled in order.</p>
         </div>
-        <button className="btn" onClick={onGenerate}>
-          Choose versions
-        </button>
+        <div className="button-row">
+          <button className="btn" onClick={onGenerate}>
+            Choose versions
+          </button>
+          {current && <MP4Export url={output!.mediaUrl!} />}
+        </div>
       </div>
       <div className="cut-sequence" aria-label="First cut sequence">
         {project.scenes.map((scene, index) => (
@@ -49,31 +69,33 @@ export default function FirstCutPreview({
               selected{output?.duration != null && ` · First cut ${output.duration.toFixed(1)}s`}
             </p>
           </div>
-          <button
-            className="btn primary"
-            disabled={busy || dirty || !ready || output?.status === "processing"}
-            onClick={onBuild}
-          >
-            {busy || output?.status === "processing" ? (
-              <Loader2 className="spin" size={16} />
-            ) : (
-              <Film size={16} />
-            )}
-            {busy || output?.status === "processing"
-              ? "Building first cut…"
-              : output
-                ? "Rebuild first cut"
-                : "Build first cut"}
-          </button>
+          {!current && ready && (
+            <button
+              className="btn primary"
+              disabled={busy || dirty || processing}
+              onClick={onBuild}
+            >
+              {busy || processing ? <Loader2 className="spin" size={16} /> : <Film size={16} />}{" "}
+              {busy || processing
+                ? "Building first cut…"
+                : output
+                  ? "Update first cut"
+                  : "Build first cut"}
+            </button>
+          )}
+          {current && <span className="status completed">Up to date</span>}
         </div>
         {dirty && (
-          <p className="draft-note">Save your Plan edits before building a new first cut.</p>
+          <p className="draft-note">
+            Unsaved Plan edits affect future generations. Existing videos are unchanged; save
+            selection order changes before building.
+          </p>
         )}
         {!ready && (
           <div className="empty">
             <Film size={30} />
             <h3>Select one version for every scene.</h3>
-            <p>Then build and watch the whole first cut here.</p>
+            <p>Then build and watch your first cut here.</p>
             <button className="btn" onClick={onGenerate}>
               Open Generate & Select
             </button>
@@ -83,13 +105,12 @@ export default function FirstCutPreview({
           <div className="empty">
             <Film size={30} />
             <h3>All scenes are selected.</h3>
-            <p>Build a single MP4 from these clips. This does not call a generation model.</p>
+            <p>Build a single MP4 from your chosen clips.</p>
           </div>
         )}
         {output && !outputIsCurrent && (
           <p role="status" className="message warning">
-            Your selection or plan changed. This is the previous first cut; rebuild to use the
-            current selection.
+            Your selected clips or playback order changed. Update the first cut to include them.
           </p>
         )}
         {output?.status === "failed" && (
@@ -97,40 +118,40 @@ export default function FirstCutPreview({
             {output.errorMessage}
           </p>
         )}
-        {output?.status === "completed" && output.mediaUrl && (
-          <>
-            <video
-              key={`${output.id}-${output.updatedAt}`}
-              className="first-cut-video"
-              controls
-              playsInline
-              preload="metadata"
-              src={output.mediaUrl}
-              aria-label="First cut preview"
-            />
-            <div className="panel-actions">
-              {outputIsCurrent ? (
-                <a className="btn primary" href={`${output.mediaUrl}?download=1`}>
-                  <Download size={16} />
-                  Export MP4
-                </a>
-              ) : (
-                <button className="btn" disabled>
-                  Rebuild before exporting
-                </button>
-              )}
-            </div>
-            {output.mode !== "live" && (
-              <p className="tiny muted">
-                Contains illustrative development footage. See the source versions for details.
-              </p>
-            )}
-          </>
+        {output?.status === "completed" && !output.mediaUrl && (
+          <p role="alert" className="message error">
+            The saved preview file is unavailable. Rebuild it from your selected clips.
+          </p>
         )}
-        <p className="field-help">
-          Simple cuts only. Original clip sound is kept; sound and visual continuity may vary
-          between clips. No transitions, music editing or timeline controls.
-        </p>
+        {output?.status === "completed" && output.mediaUrl && (
+          <video
+            key={`${output.id}-${output.updatedAt}`}
+            className="first-cut-video"
+            controls
+            playsInline
+            preload="metadata"
+            src={output.mediaUrl}
+            poster={`/api/media/thumbnails/${output.snapshot.scenes[0].taskId}`}
+            aria-label="First cut preview"
+            onError={() => setFailedMedia(`${output.id}-${output.updatedAt}`)}
+          />
+        )}
+        {output && failedMedia === `${output.id}-${output.updatedAt}` && (
+          <p role="alert" className="message error">
+            The first cut could not be played. Reload to retry or export the MP4 to open it locally.
+          </p>
+        )}
+        {output?.mode && output.mode !== "live" && (
+          <p className="tiny muted">Contains illustrative test footage.</p>
+        )}
+        <details className="cut-details">
+          <summary>About this first cut</summary>
+          <p>
+            Clips are joined with simple cuts and their original sound. Actual duration follows the
+            chosen videos. Editing the plan does not alter existing clips; generate and select a new
+            version to change the cut. No transitions, music editing or timeline controls.
+          </p>
+        </details>
       </section>
     </>
   );

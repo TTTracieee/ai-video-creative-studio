@@ -6,9 +6,9 @@ export class MockStoryboardProvider implements StoryboardProvider {
   async generate(brief: Brief, profile: Profile) {
     const titles =
       brief.duration === 15
-        ? ["The morning moment", "A small daily ritual", "Ready for what comes next"]
+        ? ["Introduce the idea", "The product in action", "The brand moment"]
         : [
-            "A new day",
+            "Introduce the idea",
             "The product detail",
             "The daily ritual",
             "A moment to enjoy",
@@ -38,8 +38,8 @@ export class MockStoryboardProvider implements StoryboardProvider {
         "Close-up with a gentle lateral slide",
         "Medium shot, slow pull-back",
       ][i % 3],
-      lighting: "Soft morning window light",
-      mood: "Warm, calm, optimistic",
+      lighting: "Clear, balanced lighting that suits the setting",
+      mood: "Aligned with the brief’s marketing objective",
       prompt: `${brief.visualStyle} commercial for ${brief.brandName}. ${actions[i]}. ${brief.creativeConcept} Audience: ${brief.targetAudience}. Objective: ${brief.marketingObjective}.`,
     };
   }

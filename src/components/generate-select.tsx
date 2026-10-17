@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Check, CirclePlay, RefreshCw, Star } from "lucide-react";
+import { Check, CirclePlay, RefreshCw } from "lucide-react";
 import type { ProjectView, TaskView } from "@/lib/client-types";
 
 type Props = {
@@ -11,7 +11,7 @@ type Props = {
   onGenerate: (sceneId: string) => void;
   onSelect: (sceneId: string, taskId: string) => void;
   onRetry: (task: TaskView) => void;
-  onReview: (id: string, rating: number, feedback: string) => void;
+  onReview: (id: string, rating: number | null, feedback: string) => void;
   onPlan: () => void;
   onPreview: () => void;
 };
@@ -152,8 +152,8 @@ function Version({
   number: number;
   selected: boolean;
 }) {
-  const [rating, setRating] = useState(task.review?.rating || 0);
   const [feedback, setFeedback] = useState(task.review?.feedback || "");
+  const [playbackFailed, setPlaybackFailed] = useState(false);
   return (
     <article className="version-result" data-testid={`task-${task.status}`}>
       <div className="row-between">
@@ -175,8 +175,16 @@ function Version({
             playsInline
             preload="metadata"
             src={task.previewUrl || task.resultUrl}
+            poster={`/api/media/thumbnails/${task.id}`}
             aria-label={`Version ${number} preview`}
+            onError={() => setPlaybackFailed(true)}
           />
+          {playbackFailed && (
+            <p role="alert" className="message error">
+              This video could not be loaded. Reload to retry; an uncached provider link may have
+              expired.
+            </p>
+          )}
           {task.mode === "mock" && (
             <p className="tiny muted">Illustrative test footage; no model was called.</p>
           )}
@@ -198,32 +206,23 @@ function Version({
               · {task.snapshot.scene.duration}s requested · Direction V
               {task.snapshot.profileVersion}
             </p>
-            <div className="stars" aria-label="Optional rating">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  aria-label={`Rate ${n} stars`}
-                  aria-pressed={rating === n}
-                  onClick={() => setRating(n)}
-                >
-                  <Star size={18} fill={n <= rating ? "currentColor" : "none"} />
-                </button>
-              ))}
-            </div>
+            <p className="field-help">
+              Optional private notes for this version. They are not sent to the model.
+            </p>
             <label>
-              Feedback
+              Review Notes
               <textarea
-                aria-label="Feedback"
+                aria-label="Review Notes"
                 value={feedback}
                 onChange={(event) => setFeedback(event.target.value)}
               />
             </label>
             <button
               className="btn"
-              disabled={busy || !rating}
-              onClick={() => onReview(task.id, rating, feedback)}
+              disabled={busy}
+              onClick={() => onReview(task.id, null, feedback)}
             >
-              Save review
+              Save notes
             </button>
             <details>
               <summary>Generation input snapshot</summary>

@@ -14,7 +14,6 @@ import {
   CirclePlay,
   Clapperboard,
   Clock3,
-  Download,
   FileText,
   Film,
   LayoutDashboard,
@@ -25,7 +24,6 @@ import {
   Save,
   ShieldCheck,
   Sparkles,
-  Star,
   Trash2,
   WandSparkles,
   X,
@@ -35,7 +33,8 @@ import {
   composePrompt,
   defaultProfile,
   sampleBrief,
-  sceneRecordSchema,
+  emptyBrief,
+  planDirtyRegions,
   type Brief,
   type Profile,
   type SceneRecord,
@@ -46,20 +45,13 @@ import { api } from "@/lib/client-api";
 import Analytics from "./analytics";
 import GenerateSelect from "./generate-select";
 import FirstCutPreview from "./first-cut-preview";
+import SceneEditor from "./scene-editor";
+import MediaThumbnail from "./media-thumbnail";
 const profileFields: [keyof Profile, string][] = [
   ["characterIdentity", "Character Identity"],
   ["productAppearance", "Product Appearance"],
   ["brandElements", "Brand Elements"],
   ["visualStyle", "Visual Style"],
-];
-const sceneFields: [keyof Omit<SceneRecord, "id" | "duration">, string][] = [
-  ["visualDescription", "Visual Description"],
-  ["subject", "Subject"],
-  ["consistencyNotes", "Consistency Notes"],
-  ["cameraMovement", "Camera Movement"],
-  ["lighting", "Lighting"],
-  ["mood", "Mood"],
-  ["prompt", "Scene Prompt"],
 ];
 function date(value: string) {
   return new Date(value).toLocaleString("en-GB", {
@@ -76,25 +68,6 @@ function ModeBadge({ mode }: { mode: string }) {
     </span>
   );
 }
-function SceneArt({ index = 0, large = false }: { index?: number; large?: boolean }) {
-  return (
-    <div className={`scene-art art-${index % 3} ${large ? "large" : ""}`} aria-hidden="true">
-      <div className="art-window" />
-      <div className="art-sun" />
-      <div className="art-table" />
-      <div className="art-bag">
-        <span>
-          MORNING
-          <br />
-          MOMENTS
-        </span>
-      </div>
-      <div className="art-cup" />
-      <span className="art-label">STORYBOARD PLACEHOLDER</span>
-    </div>
-  );
-}
-
 export default function Studio() {
   const pathname = usePathname();
   const router = useRouter();
@@ -104,14 +77,8 @@ export default function Studio() {
   const [project, setProject] = useState<ProjectView | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectView | null>(null);
   const [projectName, setProjectName] = useState("");
-  const [brief, setBrief] = useState<Brief>({
-    ...sampleBrief,
-    brandName: "",
-    productDescription: "",
-    targetAudience: "",
-    creativeConcept: "",
-  });
-  const [profile, setProfile] = useState<Profile>(defaultProfile(sampleBrief));
+  const [brief, setBrief] = useState<Brief>({ ...emptyBrief });
+  const [profile, setProfile] = useState<Profile>(defaultProfile(emptyBrief));
   const [scenes, setScenes] = useState<SceneRecord[]>([]);
   const [tasks, setTasks] = useState<TaskView[]>([]);
   const [config, setConfig] = useState<ConfigView>({
@@ -168,13 +135,7 @@ export default function Studio() {
           setScenes(p.scenes);
           setProjectName(p.name);
         } else if (pathname === "/projects/new") {
-          setBrief({
-            ...sampleBrief,
-            brandName: "",
-            productDescription: "",
-            targetAudience: "",
-            creativeConcept: "",
-          });
+          setBrief({ ...emptyBrief });
           setFormErrors({});
         } else if (pathname === "/tasks") {
           const all = await api<TaskView[]>("tasks");
@@ -235,15 +196,10 @@ export default function Studio() {
     const timer = setInterval(() => void reload(false).catch((e) => setPollError(e.message)), 2000);
     return () => clearInterval(timer);
   }, [project?.output?.status, busy, reload]);
-  const dirtyScenes =
-    !!project &&
-    JSON.stringify(scenes.map((s) => sceneRecordSchema.parse(s))) !==
-      JSON.stringify(project.scenes.map((s) => sceneRecordSchema.parse(s)));
-  const dirtyProfile = !!project && JSON.stringify(profile) !== JSON.stringify(project.profile);
-  const dirtyBrief =
-    !!project &&
-    (JSON.stringify(brief) !== JSON.stringify(project.brief) || projectName !== project.name);
-  const dirty = dirtyScenes || dirtyProfile || dirtyBrief;
+  const dirtyRegions = project
+    ? planDirtyRegions(project, { name: projectName, brief, profile, scenes })
+    : [];
+  const dirty = dirtyRegions.length > 0;
   useEffect(() => {
     const prevent = (e: BeforeUnloadEvent) => {
       if (dirty) e.preventDefault();
@@ -317,7 +273,13 @@ export default function Studio() {
       scene.duration > maxDuration
     )
       return `${config.videoProvider} requires ${minDuration === maxDuration ? minDuration : `${minDuration}–${maxDuration}`}s per clip. Edit the duration or select another provider.`;
-    if (composePrompt(scene, profile).length > maxPromptLength)
+    let finalPrompt = "";
+    try {
+      finalPrompt = composePrompt(scene, profile);
+    } catch (e) {
+      return (e as Error).message;
+    }
+    if (finalPrompt.length > maxPromptLength)
       return `Shorten the scene prompt, consistency notes or shared profile to fit ${maxPromptLength} characters.`;
     return "";
   }
@@ -362,6 +324,32 @@ export default function Studio() {
       [copy[index], copy[index + delta]] = [copy[index + delta], copy[index]];
       return copy;
     });
+  }
+  async function saveCurrentPlan() {
+    const saved = await api<ProjectView>(`projects/${projectId}/plan`, "PUT", {
+      revision: project!.revision,
+      name: projectName,
+      brief: validateBrief(),
+      profile,
+      scenes,
+    });
+    setProject(saved);
+    setBrief(saved.brief);
+    setProfile(saved.profile);
+    setScenes(saved.scenes);
+    setProjectName(saved.name);
+  }
+  async function regenerateBoard() {
+    ensureSaved();
+    if (
+      scenes.length &&
+      !confirm(
+        "Replace every scene and clear selected versions? Previous attempts are kept in Activity but will not be assigned to the new scenes.",
+      )
+    )
+      return;
+    await api(`projects/${projectId}/storyboard`, "POST", { revision: project!.revision });
+    await reload();
   }
   const missingSceneIds =
     project?.scenes
@@ -418,7 +406,7 @@ export default function Studio() {
             <br />
             Thoughtful frames.
           </strong>
-          <p>One clear workflow, from your first brief to your next creative direction.</p>
+          <p>One clear workflow, from your marketing brief to a first cut.</p>
           <span className="tiny">Built for the creative process</span>
         </div>
         <div className="sidebar-footer">
@@ -444,7 +432,7 @@ export default function Studio() {
                     : "Overview"}
           </span>
           <div className="topbar-right">
-            <span className="tiny">LOCAL-FIRST STUDIO</span>
+            <span className="tiny">BRIEF TO FIRST CUT</span>
             {config.passwordRequired && (
               <button
                 className="text-btn"
@@ -521,14 +509,17 @@ export default function Studio() {
                   </div>
                   {projects.length ? (
                     <div className="project-grid">
-                      {projects.map((p, i) => (
+                      {projects.map((p) => (
                         <article
                           className="project-card"
                           key={p.id}
                           data-testid={`project-card-${p.id}`}
                         >
                           <Link className="project-card-link" href={`/projects/${p.id}`}>
-                            <SceneArt index={i} />
+                            <MediaThumbnail
+                              src={p.thumbnailUrl}
+                              label={`${p.name} video preview`}
+                            />
                             <div className="project-card-body">
                               <div className="row-between">
                                 <span className="project-category">{p.brief.targetPlatform}</span>
@@ -552,21 +543,12 @@ export default function Studio() {
                               </div>
                             </div>
                           </Link>
-                          <button
-                            className="project-delete icon-btn"
-                            disabled={busy}
-                            aria-label={`Delete ${p.name}`}
-                            title="Delete project"
-                            onClick={() => requestDeletion(p.id)}
-                          >
-                            <Trash2 size={16} />
-                          </button>
                         </article>
                       ))}
                       <Link href="/projects/new" className="new-project-card">
                         <Plus size={25} />
                         <strong>Start something new</strong>
-                        <span>Turn a brief into a storyboard</span>
+                        <span>Turn a brief into a first cut</span>
                       </Link>
                     </div>
                   ) : (
@@ -677,21 +659,6 @@ export default function Studio() {
                     </div>
                     <div className="button-row">
                       <button
-                        className="btn danger-outline"
-                        disabled={busy}
-                        onClick={() => requestDeletion(project.id)}
-                      >
-                        <Trash2 size={16} /> Delete project
-                      </button>
-                      <button
-                        className="btn"
-                        disabled={busy}
-                        onClick={() => run(() => exportData())}
-                      >
-                        <Download size={16} />
-                        Export project data
-                      </button>
-                      <button
                         className="btn"
                         disabled={busy || dirty}
                         title="Copy the plan without generated media"
@@ -708,6 +675,39 @@ export default function Studio() {
                       >
                         Duplicate plan
                       </button>
+                      <details className="project-more">
+                        <summary className="btn">More</summary>
+                        <div className="more-menu">
+                          <button
+                            className="text-btn"
+                            disabled={busy || dirty}
+                            onClick={() => run(() => exportData())}
+                          >
+                            Export project JSON
+                          </button>
+                          <button
+                            className="text-btn"
+                            disabled={busy || dirty || !scenes.length}
+                            onClick={() => run(() => exportData(true))}
+                          >
+                            Export storyboard JSON
+                          </button>
+                          <button
+                            className="text-btn"
+                            disabled={busy || dirty || setupMissing || !scenes.length}
+                            onClick={() => run(regenerateBoard, "Storyboard replaced.")}
+                          >
+                            Regenerate all scenes
+                          </button>
+                          <button
+                            className="text-btn danger-text"
+                            disabled={busy}
+                            onClick={() => requestDeletion(project.id)}
+                          >
+                            Delete project
+                          </button>
+                        </div>
+                      </details>
                     </div>
                   </div>
                   <div className="studio-tabs">
@@ -726,6 +726,35 @@ export default function Studio() {
                       </button>
                     ))}
                   </div>
+                  {dirty && tab !== "plan" && (
+                    <p className="draft-note">
+                      Unsaved: {dirtyRegions.join(", ")}. Return to Plan to save; existing videos
+                      are unchanged.
+                    </p>
+                  )}
+                  {tab === "plan" && (
+                    <div className="plan-save-bar">
+                      <div>
+                        <strong>
+                          {dirty ? `Unsaved: ${dirtyRegions.join(", ")}` : "All plan changes saved"}
+                        </strong>
+                        <p>
+                          Brief defines the goal. Creative Direction is shared. Scenes describe
+                          individual shots. Saved changes apply to future generations.
+                        </p>
+                      </div>
+                      <button
+                        className="btn primary"
+                        disabled={busy || !dirty}
+                        onClick={() =>
+                          run(saveCurrentPlan, "Plan saved. Existing videos are unchanged.")
+                        }
+                      >
+                        <Save size={16} />
+                        Save Plan
+                      </button>
+                    </div>
+                  )}
                   {tab === "plan" && (
                     <details className="panel brief-plan" open={!scenes.length}>
                       <summary>
@@ -747,25 +776,6 @@ export default function Studio() {
                         />
                       </label>
                       <BriefForm brief={brief} setBrief={setBrief} errors={formErrors} />
-                      <div className="panel-actions">
-                        <button
-                          className="btn primary"
-                          disabled={busy}
-                          onClick={() =>
-                            run(async () => {
-                              await api(`projects/${project.id}`, "PATCH", {
-                                revision: project.revision,
-                                brief: validateBrief(),
-                                name: projectName,
-                              });
-                              await reload(false);
-                            }, "Brief saved. Existing scenes have not been overwritten.")
-                          }
-                        >
-                          <Save size={16} />
-                          Save brief
-                        </button>
-                      </div>
                     </details>
                   )}
                   {tab === "plan" && (
@@ -786,49 +796,18 @@ export default function Studio() {
                                 <Clock3 size={14} />
                                 {total} / {project.brief.duration}s planned
                               </span>
-                              <button
-                                className="btn"
-                                disabled={busy}
-                                onClick={() =>
-                                  run(async () => {
-                                    const saved = await api<ProjectView>(
-                                      `projects/${project.id}/storyboard`,
-                                      "PUT",
-                                      { revision: project.revision, scenes },
-                                    );
-                                    setProject(saved);
-                                    setScenes(saved.scenes);
-                                  }, "Storyboard saved.")
-                                }
-                              >
-                                <Save size={15} />
-                                Save scenes{dirtyScenes ? " *" : ""}
-                              </button>
                             </>
                           )}
-                          <button
-                            className="btn primary"
-                            disabled={busy || dirty || setupMissing}
-                            onClick={() =>
-                              run(async () => {
-                                ensureSaved();
-                                if (
-                                  scenes.length &&
-                                  !confirm(
-                                    "Replace the current storyboard? Existing video task history will be kept.",
-                                  )
-                                )
-                                  return;
-                                await api(`projects/${project.id}/storyboard`, "POST", {
-                                  revision: project.revision,
-                                });
-                                await reload();
-                              }, "Storyboard generated.")
-                            }
-                          >
-                            <WandSparkles size={16} />
-                            {scenes.length ? "Regenerate board" : "Generate storyboard"}
-                          </button>
+                          {!scenes.length && (
+                            <button
+                              className="btn primary"
+                              disabled={busy || dirty || setupMissing}
+                              onClick={() => run(regenerateBoard, "Storyboard generated.")}
+                            >
+                              <WandSparkles size={16} />
+                              Generate storyboard
+                            </button>
+                          )}
                         </div>
                       </div>
                       {project.storyboardAt &&
@@ -840,8 +819,8 @@ export default function Studio() {
                         )}
                       {dirty && (
                         <div className="draft-note">
-                          <span className="draft-dot" /> Unsaved edits · Save changes before
-                          generating or exporting.
+                          <span className="draft-dot" /> Unsaved edits · Save Plan before
+                          generating. Existing video exports remain available.
                         </div>
                       )}
                       <div className="workspace-grid with-profile">
@@ -871,7 +850,13 @@ export default function Studio() {
                                     data-testid={`scene-${i}`}
                                   >
                                     <div className="scene-card-top">
-                                      <SceneArt index={i} />
+                                      <MediaThumbnail
+                                        src={
+                                          project.scenes.find((saved) => saved.id === scene.id)
+                                            ?.thumbnailUrl
+                                        }
+                                        label={`${scene.title} video preview`}
+                                      />
                                       <span className="scene-number">
                                         SCENE {String(i + 1).padStart(2, "0")}
                                       </span>
@@ -901,48 +886,14 @@ export default function Studio() {
                                           }
                                         />
                                       </label>
-                                      <label>
-                                        Scene Prompt
-                                        <textarea
-                                          rows={4}
-                                          value={scene.prompt}
-                                          onChange={(e) =>
-                                            editScene(scene.id, "prompt", e.target.value)
-                                          }
-                                        />
-                                      </label>
-                                      <p className="field-help">
-                                        Final prompt: {composePrompt(scene, profile).length} /{" "}
-                                        {config.capabilities.maxPromptLength ?? 10000} characters
-                                      </p>
+                                      <SceneEditor
+                                        scene={scene}
+                                        profile={profile}
+                                        onChange={(key, value) => editScene(scene.id, key, value)}
+                                      />
                                       {sceneIssue(scene) && (
                                         <p className="field-error">{sceneIssue(scene)}</p>
                                       )}
-                                      <details>
-                                        <summary>Scene direction & final prompt</summary>
-                                        {sceneFields
-                                          .filter(([key]) => key !== "prompt")
-                                          .map(([key, label]) => (
-                                            <label key={key}>
-                                              {label}
-                                              <textarea
-                                                rows={2}
-                                                value={scene[key]}
-                                                onChange={(e) =>
-                                                  editScene(scene.id, key, e.target.value)
-                                                }
-                                              />
-                                            </label>
-                                          ))}
-                                        <label>
-                                          Final submitted prompt preview
-                                          <textarea
-                                            readOnly
-                                            rows={6}
-                                            value={composePrompt(scene, profile)}
-                                          />
-                                        </label>
-                                      </details>
                                       <div className="scene-tools">
                                         <button
                                           className="icon-btn"
@@ -974,7 +925,12 @@ export default function Studio() {
                                         </button>
                                         <button
                                           className="text-btn"
-                                          disabled={busy || dirty || setupMissing}
+                                          disabled={
+                                            busy ||
+                                            dirty ||
+                                            setupMissing ||
+                                            scene.promptMode === "override"
+                                          }
                                           onClick={() =>
                                             run(async () => {
                                               ensureSaved();
@@ -1007,6 +963,8 @@ export default function Studio() {
                                         id: `draft-${crypto.randomUUID()}`,
                                         title: "New scene",
                                         duration: 1,
+                                        promptMode: "structured",
+                                        promptOverride: "",
                                         prompt:
                                           "Describe this scene’s subject, action, setting, camera, and style.",
                                       },
@@ -1015,14 +973,6 @@ export default function Studio() {
                                 >
                                   <Plus size={15} />
                                   Add scene
-                                </button>
-                                <button
-                                  className="text-btn"
-                                  disabled={busy}
-                                  onClick={() => run(() => exportData(true))}
-                                >
-                                  <Download size={14} />
-                                  Export storyboard JSON
                                 </button>
                               </div>
                             </>
@@ -1037,7 +987,7 @@ export default function Studio() {
                           </div>
                           <h3>Creative Direction</h3>
                           <p className="muted">
-                            Shared guidance for future generations. Existing clips stay unchanged.
+                            Shared guidance for new generations. Results may vary.
                           </p>
                           {profileFields.map(([key, label]) => (
                             <label key={key}>
@@ -1050,31 +1000,15 @@ export default function Studio() {
                               />
                             </label>
                           ))}
-                          <button
-                            className="btn primary full"
-                            disabled={busy}
-                            onClick={() =>
-                              run(async () => {
-                                await api(`projects/${project.id}`, "PATCH", {
-                                  revision: project.revision,
-                                  profile,
-                                });
-                                const updated = await api<ProjectView>(`projects/${project.id}`);
-                                setProject(updated);
-                                setProfile(updated.profile);
-                              }, "Creative direction saved. Future generations will reference it.")
-                            }
-                          >
-                            <Save size={15} />
-                            Save direction{dirtyProfile ? " *" : ""}
-                          </button>
-                          <div className="profile-disclaimer">
-                            <ShieldCheck size={15} />
-                            <span>
-                              Prompt guidance only. Actual visual consistency depends on the model
-                              and is not guaranteed.
-                            </span>
-                          </div>
+                          <details className="direction-help">
+                            <summary>How shared direction applies</summary>
+                            <p>
+                              Shared identity, product, brand and style take precedence in the
+                              submitted instructions. Scene fields add shot details. Inputs are kept
+                              unchanged; model adherence may vary. Saving here never changes
+                              existing clips.
+                            </p>
+                          </details>
                         </aside>
                       </div>
                       <div className="generation-bar">
@@ -1103,22 +1037,23 @@ export default function Studio() {
                           Save your Plan edits before generating or selecting a version.
                         </p>
                       )}
-                      <div className="panel-actions">
-                        <button
-                          className="btn primary"
-                          disabled={
-                            busy ||
-                            dirty ||
-                            setupMissing ||
-                            total !== project.brief.duration ||
-                            !missingSceneIds.length ||
-                            project.scenes.some((scene) => !!sceneIssue(scene))
-                          }
-                          onClick={() => run(() => generateClips(missingSceneIds))}
-                        >
-                          Generate missing scenes
-                        </button>
-                      </div>
+                      {missingSceneIds.length > 0 && (
+                        <div className="panel-actions">
+                          <button
+                            className="btn primary"
+                            disabled={
+                              busy ||
+                              dirty ||
+                              setupMissing ||
+                              total !== project.brief.duration ||
+                              project.scenes.some((scene) => !!sceneIssue(scene))
+                            }
+                            onClick={() => run(() => generateClips(missingSceneIds))}
+                          >
+                            Generate missing scenes
+                          </button>
+                        </div>
+                      )}
                       {config.developmentTools && config.videoMode === "mock" && (
                         <details className="dev-controls">
                           <summary>Development controls</summary>
@@ -1171,7 +1106,7 @@ export default function Studio() {
                           run(async () => {
                             await api(`tasks/${id}/review`, "PUT", { rating, feedback });
                             await reload(false);
-                          }, "Review saved.")
+                          }, "Notes saved.")
                         }
                       />
                     </>
@@ -1229,7 +1164,7 @@ export default function Studio() {
                       run(async () => {
                         await api(`tasks/${id}/review`, "PUT", { rating, feedback });
                         setTasks(await api<TaskView[]>("tasks"));
-                      }, "Review saved.")
+                      }, "Notes saved.")
                     }
                   />
                 </>
@@ -1379,7 +1314,7 @@ function BriefForm({
     string,
     string,
   ][] = [
-    ["brandName", "Brand Name", "e.g. Morning Brew"],
+    ["brandName", "Brand Name", "e.g. Your brand"],
     ["productDescription", "Product Description", "What makes your product special?"],
     ["targetAudience", "Target Audience", "Who are you speaking to?"],
     ["marketingObjective", "Marketing Objective", "e.g. Brand awareness"],
@@ -1458,7 +1393,7 @@ function TaskList({
   tasks: TaskView[];
   busy: boolean;
   onRetry: (task: TaskView) => void;
-  onReview: (id: string, rating: number, feedback: string) => void;
+  onReview: (id: string, rating: number | null, feedback: string) => void;
 }) {
   if (!tasks.length)
     return (
@@ -1485,9 +1420,8 @@ function TaskCard({
   task: TaskView;
   busy: boolean;
   onRetry: (task: TaskView) => void;
-  onReview: (id: string, rating: number, feedback: string) => void;
+  onReview: (id: string, rating: number | null, feedback: string) => void;
 }) {
-  const [rating, setRating] = useState(task.review?.rating || 0);
   const [feedback, setFeedback] = useState(task.review?.feedback || "");
   const [mediaError, setMediaError] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -1537,7 +1471,8 @@ function TaskCard({
               controls
               playsInline
               preload="metadata"
-              src={task.resultUrl}
+              src={task.previewUrl || `/api/media/tasks/${task.id}`}
+              poster={`/api/media/thumbnails/${task.id}`}
               onError={() => setMediaError(true)}
               aria-label={`${task.snapshot.scene.title} result`}
             />
@@ -1554,46 +1489,38 @@ function TaskCard({
           )}
           {task.provider.startsWith("wan") && (
             <p className="tiny muted">
-              Generated by Alibaba Cloud Wan from the saved prompt. The result link expires after 24
-              hours; save the clip from Open clip.
+              Generated with Wan. The preview uses a local cache when available. Uncached provider
+              links may expire.
             </p>
           )}
-          <a className="text-btn" href={task.resultUrl} target="_blank" rel="noreferrer">
+          <a
+            className="text-btn"
+            href={task.previewUrl || `/api/media/tasks/${task.id}`}
+            target="_blank"
+            rel="noreferrer"
+          >
             <CirclePlay size={14} />
             Open clip
           </a>
           <div className="review-form">
-            <label>Rate this result</label>
-            <div className="stars">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  aria-label={`Rate ${n} stars`}
-                  aria-pressed={rating === n}
-                  onClick={() => setRating(n)}
-                  key={n}
-                >
-                  <Star size={23} fill={n <= rating ? "currentColor" : "none"} />
-                </button>
-              ))}
-            </div>
             <label>
-              Feedback
+              Review Notes
               <textarea
-                aria-label="Feedback"
+                aria-label="Review Notes"
                 rows={2}
                 maxLength={3000}
                 value={feedback}
-                placeholder="What worked? What would you change?"
+                placeholder="Private notes for this version. Not sent to the model."
                 onChange={(e) => setFeedback(e.target.value)}
               />
             </label>
             <button
               className="btn full"
-              disabled={busy || !rating}
-              onClick={() => onReview(task.id, rating, feedback)}
+              disabled={busy}
+              onClick={() => onReview(task.id, null, feedback)}
             >
               <Save size={14} />
-              {task.review ? "Update review" : "Save review"}
+              Save notes
             </button>
           </div>
         </>

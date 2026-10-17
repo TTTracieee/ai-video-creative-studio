@@ -13,16 +13,27 @@ import type { StoryboardLimits, StoryboardProvider } from "./types";
 
 function boundedSceneSchema(profile: Profile, limits?: StoryboardLimits) {
   if (!limits) return sceneSchema;
-  const overhead = composePrompt({ prompt: "", consistencyNotes: "" }, profile).length;
-  const budget = Math.min(2000, limits.maxPromptLength - overhead - 40);
+  const emptyScene = {
+    title: "",
+    duration: 1,
+    prompt: "",
+    visualDescription: "",
+    subject: "",
+    cameraMovement: "",
+    lighting: "",
+    mood: "",
+    consistencyNotes: "",
+  };
+  const overhead = composePrompt(emptyScene, profile).length;
+  const budget = limits.maxPromptLength - overhead;
   if (budget < 80)
     throw new AppError(
       "PROFILE_TOO_LONG",
-      "Shorten the shared visual profile before generating: this video provider leaves too little room for a scene prompt.",
+      "Shorten the shared visual profile to leave room for scene instructions.",
       422,
     );
   return sceneSchema.extend({
-    prompt: sceneSchema.shape.prompt.max(budget),
+    prompt: sceneSchema.shape.prompt.max(Math.min(2000, budget)),
     consistencyNotes: sceneSchema.shape.consistencyNotes.max(40),
   });
 }
@@ -200,8 +211,19 @@ export class QwenStoryboardProvider implements StoryboardProvider {
     });
     return this.validated(
       schema,
-      `Create exactly ${count} coherent scenes, each ${brief.duration / count} whole seconds, totaling ${brief.duration} seconds. Include a visual opening, product narrative and closing brand moment.\nBrief: ${JSON.stringify(brief)}\nShared profile: ${JSON.stringify(profile)}`,
-      (text) => parseStoryboard(schema.parse(JSON.parse(text)), brief),
+      `Create exactly ${count} coherent scenes, each ${brief.duration / count} whole seconds, totaling ${brief.duration} seconds. Include a visual opening, product narrative and closing brand moment. Keep all structured shot fields concise so the combined scene and shared direction fit the video provider limit.\nBrief: ${JSON.stringify(brief)}\nShared profile: ${JSON.stringify(profile)}`,
+      (text) => {
+        const scenes = parseStoryboard(schema.parse(JSON.parse(text)), brief);
+        scenes.forEach((scene, index) => {
+          if (limits && composePrompt(scene, profile).length > limits.maxPromptLength)
+            throw new AppError(
+              "PROMPT_TOO_LONG",
+              `Scene ${index + 1} structured instructions exceed the combined ${limits.maxPromptLength} character limit. Shorten the scene fields.`,
+              422,
+            );
+        });
+        return scenes;
+      },
     );
   }
 
@@ -220,6 +242,12 @@ export class QwenStoryboardProvider implements StoryboardProvider {
         const result = schema.parse(JSON.parse(text));
         if (result.duration !== scene.duration)
           throw new AppError("INVALID_DURATION", "Scene duration changed.", 422);
+        if (limits && composePrompt(result, profile).length > limits.maxPromptLength)
+          throw new AppError(
+            "PROMPT_TOO_LONG",
+            `Structured instructions exceed the combined ${limits.maxPromptLength} character limit. Shorten the scene fields.`,
+            422,
+          );
         return result;
       },
     );

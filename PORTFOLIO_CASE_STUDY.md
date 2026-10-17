@@ -16,13 +16,15 @@ During internal use, the builder found that Storyboard and Visual Consistency fe
 
 **Projects → Plan → Generate & Select → Preview & Export.**
 
-Plan brings the brief, editable storyboard and four-field Creative Direction together. Shared instructions are prompt guidance for future generations; they do not guarantee cross-shot identity. Generate & Select centers each scene's chosen version, with attempts, retries and optional ratings in details. The first success is selected automatically; later results never overwrite an existing choice.
+Plan brings the brief, editable storyboard and four-field Creative Direction together. Shared instructions are prompt guidance for future generations; they do not guarantee cross-shot identity. Generate & Select centers each scene's chosen version, with attempts, retries and optional private Review Notes in details. The first success is selected automatically; later results never overwrite an existing choice.
 
-Once all scenes have a selection, local FFmpeg assembles them in storyboard order into one downloadable MP4. Each output stores its selection snapshot; changed order or choices require a rebuild. Target and actual durations are shown separately. This is a first cut with hard cuts and original clip sound, without timeline editing, transitions, captions, voice-over or music mixing.
+Scenes use five structured shot fields by default. A deterministic composer maps edits into the exact submitted prompt; an explicit advanced override preserves manual control. One Save Plan action commits the brief, shared direction and scenes atomically, with visible unsaved regions and retained drafts after failed saves. New projects use category-neutral defaults rather than inherited coffee-ad assumptions. These corrections came from internal review, not external user research.
+
+Once all scenes have a selection, local FFmpeg assembles them in storyboard order into one downloadable MP4. Each output stores its selection snapshot; changed order or choices require a rebuild. Renaming the project or editing future-generation text leaves the existing cut current. Its canvas follows the first selected clip’s original aspect ratio. Watch and Export MP4 are the completed project’s primary actions. Target and actual durations are shown separately. This is a first cut with hard cuts and original clip sound, without timeline editing, transitions, captions, voice-over or music mixing.
 
 ## Implementation
 
-Next.js, React, TypeScript, Tailwind CSS, Prisma, SQLite and Zod. Provider adapters separate storyboard creation from asynchronous video generation. Revision checks, idempotency keys, immutable prompt snapshots, persistent retry history and local media caching make the workflow recoverable. Mock providers remain development infrastructure; execution mode and Example provenance are separate internal dimensions. Activity and product analytics are secondary tools.
+Next.js, React, TypeScript, Tailwind CSS, Prisma, SQLite and Zod. Provider adapters separate storyboard creation from asynchronous video generation. Revision checks, idempotency keys, immutable prompt snapshots, persistent retry history and local media caching make the workflow recoverable. Mock providers remain development infrastructure; execution mode and Example provenance are separate internal dimensions. Activity and product analytics are secondary tools. Local first_cut_built and mp4_exported events distinguish assembly and download-response requests from JSON export; repeated byte-range requests share a deduplication key. A response is not proof that a user finished downloading the file.
 
 The runnable Example contains a Qwen 3.8 Flash storyboard and three real five-second Wan 3.0 / 480P clips, plus a saved approximately 15-second first cut. Opening it makes no model requests. One clip already existed; two further clips were generated under the user's explicit maximum of two clips and ¥3 original-price estimate. Billing was not independently audited. Other provider implementations retain simulated contract coverage rather than claimed live verification.
 
@@ -36,7 +38,7 @@ The real Example proves that this specific three-shot path can be assembled and 
 
 ## Next validation
 
-P0 closes the brief-to-first-cut task. Before adding more AI features, observe target users attempting to understand Creative Direction, choose versions, build a cut and revise a weak shot. Measure task completion and collect confusion points. No external study results, growth or time-saving percentages are claimed.
+P0 closes the brief-to-first-cut task. Before adding more AI features, observe target users planning a non-coffee project, understanding save state and Creative Direction, choosing versions, building a cut and exporting the MP4. Measure task completion and collect confusion points. No external study results, growth or time-saving percentages are claimed.
 
 ## CV-ready descriptions
 

@@ -4,7 +4,7 @@
 
 ## 先分清 Mock 与真实生成
 
-Mock 视频是仓库自带的固定演示 MP4，不根据 Prompt 生成内容。它只验证任务状态、播放、重试和评分，不能证明生成效果。
+Mock 视频是仓库自带的固定演示 MP4，不根据 Prompt 生成内容。它只验证任务状态、播放、重试、版本选择和备注，不能证明生成效果。
 
 本项目现在实现的真实链路为：Brief → Qwen 生成分镜 → 编辑 Scene / Visual Consistency Profile → 万相生成每个镜头 → 轮询实际任务 → 播放真实生成结果 → Review。它输出多个镜头片段，在选片后可本地合并 First Cut成广告成片。真实生成仍受模型效果、账号权限及余额影响。
 
@@ -39,10 +39,10 @@ npm run dev
 ## 第一次真实验收：15 秒规划，先生成一个镜头
 
 1. 创建 Morning Brew 示例，选择 15 秒。点击 Generate storyboard：Qwen 应返回三个 5 秒镜头。
-2. 查看 Scene Prompt、共享视觉说明和 Final submitted prompt preview。Qwen 会为共享说明预留字数；万相 3.0 的最终组合 Prompt 不得超过 20,000 字符。若手动编辑超限，缩短 Scene Prompt、Consistency Notes 或共享档案后保存；应用在请求前拒绝超限内容，不交给模型静默截断。
+2. 编辑结构化 Scene 五个字段与共享 Creative Direction；在 Advanced 查看 Final Prompt，再用 Save Plan 一次保存。需要手写时显式开启 Prompt Override。Qwen 会为共享说明预留字数；万相 3.0 的最终组合 Prompt 不得超过 20,000 字符。若手动编辑超限，缩短结构化镜头描述、Scene Notes、Override 或共享档案后保存；应用在请求前拒绝超限内容，不交给模型静默截断。
 3. 只点击第一个镜头的 Generate clip。它会创建真实万相任务，不返回仓库中的演示视频。
 4. 在 Generate & review 查看 Pending → Processing → Completed。生成通常需要数分钟，页面约每 15 秒查询一次。可刷新恢复同一任务；不要重复点击提交来查询进度。
-5. 播放返回的视频，填写评分与反馈并保存。确认这是新生成的内容，再逐个生成剩余两个镜头。
+5. 播放返回的视频，按需写私人 Review Notes。确认这是新生成的内容，再逐个生成剩余两个镜头。
 
 Generate all clips 每次会给全部镜头创建新尝试；若已经生成第一个镜头，再点击它会重新生成全部三个镜头并可能再次计费。首次验证后建议分别点击剩余镜头，避免重复花费。官方列出的万相 3.0 北京新人额度为 30 秒；若后台显示剩余 30/共 30，纯文生视频可先验证六个 5 秒镜头（重生成也消耗额度）。实际余量和有效期以账号控制台为准，代码不查询或承诺账户额度。
 

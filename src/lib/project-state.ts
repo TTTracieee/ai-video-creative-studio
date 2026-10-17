@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { firstCutSnapshotSchema, type Brief, type SceneRecord } from "./domain";
+import { firstCutSnapshotSchema, briefSchema, type Brief, type SceneRecord } from "./domain";
 
 type Scene = SceneRecord & { selectedGenerationTaskId: string | null };
 type Task = {
@@ -8,6 +8,7 @@ type Task = {
   sceneId: string | null;
   status: string;
   resultUrl: string | null;
+  snapshot?: unknown;
 };
 export function selectionSnapshot(brief: Brief, scenes: Scene[], tasks: Task[]) {
   if (!scenes.length) return null;
@@ -24,14 +25,27 @@ export function selectionSnapshot(brief: Brief, scenes: Scene[], tasks: Task[]) 
       : null;
   });
   if (selected.some((scene) => !scene)) return null;
+  const first = tasks.find((task) => task.id === selected[0]?.taskId);
+  const originalRatio =
+    first?.snapshot && typeof first.snapshot === "object" && "aspectRatio" in first.snapshot
+      ? briefSchema.shape.aspectRatio.safeParse(first.snapshot.aspectRatio)
+      : null;
   return firstCutSnapshotSchema.parse({
-    aspectRatio: brief.aspectRatio,
+    aspectRatio: originalRatio?.success ? originalRatio.data : brief.aspectRatio,
     targetDuration: brief.duration,
     scenes: selected,
   });
 }
 export function selectionKey(snapshot: NonNullable<ReturnType<typeof selectionSnapshot>>) {
-  return createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        renderer: "hardcut-v1",
+        aspectRatio: snapshot.aspectRatio,
+        tasks: snapshot.scenes.map((scene) => scene.taskId),
+      }),
+    )
+    .digest("hex");
 }
 
 export function projectProgress(

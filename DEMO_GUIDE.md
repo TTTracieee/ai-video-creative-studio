@@ -12,19 +12,19 @@
 
 切到 Plan，展开 Creative brief，展示受众、目标、15 秒与 9:16。三个默认 5 秒镜头与 Creative Direction 在同一个页面。四项共享说明指导未来生成，不保证人物或包装一致性；修改不会重写已有片段。
 
-展开 Scene direction & final prompt，说明共享与镜头级说明如何组合。展示标题、时长、排序及保存。若修改 Example，应事先 Duplicate plan，复制规划不复制模型结果。
+直接修改 Visual Description、Subject、Camera Movement、Lighting 或 Mood，展开 Advanced · Prompt & override 验证 Final Prompt 同步变化。共享档案始终参与；Override 是显式高级切换。展示 Unsaved 区域和统一 Save Plan，说明保存失败保留草稿，改文字不改变旧视频。若修改 Example，应事先 Duplicate plan，复制规划不复制模型结果。
 
 ## 1:15–2:00：Generate & Select
 
-展示 Scene 的 Selected for cut。Other versions 属于各 Scene，Notes & details 中保留 Provider、Prompt 快照与可选评分。
+展示 Scene 的 Selected for cut。Other versions 属于各 Scene，Notes & details 中保留 Provider、Prompt 快照与可选私人的 Review Notes。
 
 说明首次成功自动选中；Generate another 不替换原选择，用户明确 Use this version 才影响初剪。不为演示额外发付费请求。可在隔离的双 Mock 测试项目演示此动作，明确说明是带水印开发素材。
 
 ## 2:00–2:35：Preview & Export
 
-每个 Scene 选定后 Build first cut。修改选择或顺序后显示旧预览提示，Rebuild first cut 更新；合并不调用生成模型。实际时长来自源视频，Mock 测试视频三条约 9 秒，不能说成 15 秒模型输出。
+每个 Scene 选定后 Build first cut。修改选择或顺序后显示旧预览提示，Update first cut 更新；合并不调用生成模型。实际时长来自源视频，Mock 测试视频三条约 9 秒，不能说成 15 秒模型输出。
 
-展示选片序列和单一 MP4。硬切保留原音，没有转场、字幕、配乐或时间线编辑；跨镜头声音和视觉可能不连续。
+完成态的主要操作是顶部 Export MP4；改项目名称不要求重建。JSON 和全量重写位于 More。展示选片序列和单一 MP4。硬切保留原音，没有转场、字幕、配乐或时间线编辑；跨镜头声音和视觉可能不连续。
 
 ## 2:35–3:00：产品判断与证据
 

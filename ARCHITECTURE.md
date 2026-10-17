@@ -16,7 +16,7 @@ flowchart LR
   Service --> Video[VideoProvider]
   Video --> Mock[持久化时间驱动 Mock]
   Video --> Bach[旧版 BACH v1 / 待实际验证]
-  Video --> Wan[百炼万相 2.2 / 2.6 异步任务]
+  Video --> Wan[百炼万相 2.2 / 2.6 / 3.0 异步任务]
   DB --> Analytics[来源与模式隔离的指标]
 ```
 
@@ -26,7 +26,7 @@ flowchart LR
 - Scene：Project 外键、顺序、selectedGenerationTaskId 和经 Zod 校验的结构化分镜内容。编辑保持已有 ID；删除时任务 sceneId 设为 null。
 - GenerationTask：Provider/Mode、状态、远端 ID、输入快照、时间、结果 URL / localMediaPath、错误、重试关联和唯一 idempotencyKey。
 - ProjectOutput：状态、选片快照、selectionKey 哈希、模式、媒体路径、实际时长与错误；同项目同快照唯一。
-- Review：每个任务至多一份最新评分和反馈；更新不增加样本数。
+- Review：每个任务至多一份私人版本备注；rating 可空，兼容历史评分，UI 不再收集星级。
 - Event：事件名、时间、Session ID、Project ID、origin、mode、properties、唯一去重键。
 
 SQLite 文件被忽略，不提交到 Git。迁移脚本先确保文件和父目录存在，再运行 Prisma migrate deploy；已有文件不截断。测试使用临时数据库或独立 e2e.db。
@@ -41,6 +41,7 @@ SQLite 文件被忽略，不提交到 Git。迁移脚本先确保文件和父目
 | ------------------------------------------------- | -------------------------------------------------------------------- |
 | GET/POST /api/projects                            | 列表 / 创建 Brief                                                    |
 | GET/PATCH /api/projects/:id                       | 项目恢复 / 修改 Brief、名称、Profile                                 |
+| PUT /api/projects/:id/plan                        | 统一原子保存名称、Brief、Profile、Scenes，检查 revision              |
 | DELETE /api/projects/:id                          | JSON 请求体传 revision；永久删除项目及关联记录，活动任务返回 409     |
 | POST/PUT /api/projects/:id/storyboard             | 生成 / 保存完整有序分镜草稿                                          |
 | POST /api/projects/:id/scenes/:sceneId/regenerate | 重写单镜头，保持时长                                                 |
@@ -48,8 +49,8 @@ SQLite 文件被忽略，不提交到 Git。迁移脚本先确保文件和父目
 | GET /api/tasks                                    | 任务及最新 Review                                                    |
 | POST /api/tasks/:id/sync                          | 查询 Provider 并持久化状态                                           |
 | POST /api/tasks/:id/retry                         | 新尝试，关联原任务；不覆盖历史                                       |
-| PUT /api/tasks/:id/review                         | 1–5 分及反馈                                                         |
-| POST /api/projects/:id/export                     | 导出并记录事件                                                       |
+| PUT /api/tasks/:id/review                         | 私人 Review Notes；兼容可选历史 rating                               |
+| POST /api/projects/:id/export                     | 导出 JSON 并记录 project_exported                                    |
 | GET /api/analytics                                | mode、origin、from、to 筛选                                          |
 | POST /api/auth                                    | 登录或退出                                                           |
 | GET /api/health                                   | 数据库连通性，不暴露项目内容                                         |
@@ -60,7 +61,11 @@ StoryboardProvider 暴露 generate / regenerateScene。默认 Mock 根据 Brief 
 
 低成本替代通过 `STORYBOARD_PROVIDER=qwen` 选择：直接使用阿里云兼容 Chat Completions 接口，无需 OpenAI 账号。`DASHSCOPE_API_KEY`、`DASHSCOPE_BASE_URL` 只在服务端读取，Base URL 由用户从对应业务空间/地域控制台复制；仅接受官方 HTTPS 地址且禁止重定向。默认 `qwen-flash`，`enable_thinking=false`、`response_format=json_object`、最多 8,192 输出 Token；系统 Prompt 包含 JSON 关键字及目标 Schema。JSON Object 不保证结构，服务端仍执行相同的 Zod/业务校验，至多修复一次。拒绝、截断、无内容、无效响应外壳、HTTP 错误、超时不自动重试，不转发原始提供方错误或密钥。Qwen 的分镜/事件模式归为 live，视频 Provider 独立配置。真实付费接通情况见 TEST_RESULTS.md。
 
-Profile 的四个字段是共享文本说明。最终 Prompt = 镜头 Prompt + 当前 Profile + 镜头一致性备注。编辑 Profile 不重写镜头 Prompt；生成任务保存 Profile 版本与最终 Prompt 快照。它不是身份锁定、图像参考或一致性质量保证。
+`domain.ts` 的确定性 Composer 将五个结构化字段（Visual Description、Subject、Camera Movement、Lighting、Mood）及 Scene Notes 与当前 Profile 组合，客户端预览和服务端提交使用同一函数。编辑不请求 LLM。明确的 `promptMode=override` 使用 promptOverride 替换 Scene 指令块；结构化值保留，关闭 Override 即恢复。共享档案始终参与，身份/产品/品牌/风格优先；不自动检测或修改自然语言冲突。
+
+Provider 的原始 `prompt` 字段继续兼容协议。新规划默认 structured；旧 Scene 未带模式时 readScene 保留原 Prompt 为显式 Override。历史任务 JSON 不做默认字段注入或迁移重写。生成快照记录原字段、模式、Profile 版本和 Final Prompt。它不是身份锁定、图像参考或一致性质量保证。
+
+`PUT /plan` 同一事务写入名称/Brief/Profile/Scenes 与排序，revision 过期返回409；Profile 实际变化才增加 profileVersion。页面以白名单字段比较草稿，未完成的空字段也能显示 unsaved，不提前 Zod parse 崩溃。保存失败不清空草稿；所有生成/合并要求先保存。Brief 风格和 Profile 风格不隐式联动。
 
 ## 视频 Provider 与状态
 
@@ -82,13 +87,15 @@ BACH Live：只实现旧版 `/videos/text2video` 和对应查询路径，不混�
 
 ## Event Tracking 与指标
 
-业务写入与事件写入同事务，终态事件用任务 ID 去重。必需事件：brief_created、storyboard_generated、scene_edited、generation_started、generation_completed、generation_failed、generation_retried、result_rated、project_exported；另记录 consistency_profile_updated。不保存密钥、完整 Brief 或完整 Prompt 到事件 properties。
+业务写入与事件写入同事务，终态事件用任务 ID 去重。必需事件：brief_created、storyboard_generated、scene_edited、generation_started、generation_completed、generation_failed、generation_retried、result_rated、project_exported；另记录 consistency_profile_updated、first_cut_built、mp4_exported。不保存密钥、完整 Brief 或完整 Prompt 到事件 properties。
 
-mode 分 mock/live，Brief 事件为 neutral；origin 分 user/demo，测试数据库独立。Conversion 的模式指分镜 Provider，生成指标的模式指视频 Provider。所有分母及样本量在 UI 显示：
+mode 分 mock/live/mixed（mixed 仅混合来源输出），Brief 事件为 neutral；origin 分 user/demo，测试数据库独立。Conversion 的模式指分镜 Provider，生成指标的模式指视频 Provider。所有分母及样本量在 UI 显示：
 
 - Conversion：范围内创建、截至结束曾有对应模式 storyboard_generated 的项目 / 范围内创建 Brief 的项目。
 - Success：范围内创建且截至结束已 Completed / 同批截至结束的 Completed + Failed。
-- Rating：同批已完成任务最新评分平均值。最新评分在结束日期后更新的，不回溯重建旧评分。
+- First Cut Built：范围内完成的输出事件数，按输出 ID 去重；缓存命中不重复。
+- MP4 Exported：范围内显式下载成功响应事件数；客户端点击生成 UUID，同次 Range 重试共享去重键；HEAD、预览、JSON 不计。响应开始不保证用户完整保存文件。
+- 旧 rating 聚合保留内部兼容，UI 不作为 KPI；没有新增评分样本。
 - Failure：Failed / 终态；Retry：重试尝试 / 全部尝试；Duration：已完成尝试平均 completedAt − createdAt，包括排队。
 - Pending/Processing 单列，不计入成功率。无样本为 null，显示 —。没有预填增长数据。
 
@@ -105,14 +112,18 @@ Docker 使用 Next.js standalone 和生产依赖，运行迁移后启动。Railw
 ## P0 选片与 First Cut
 
 - `PUT /api/projects/:id/scenes/:sceneId/select`：revision、taskId；验证项目/镜头归属、成功状态和有效结果链接，事务保存选择并递增版本。
-- `POST /api/projects/:id/first-cut`：revision；要求每个 Scene 有成功选片。按顺序保存 Scene/Task/标题/规划时长/目标时长/画幅快照，对快照做 SHA256。相同快照复用已完成文件，处理中返回已有输出，失败或文件缺失允许重建。
+- `POST /api/projects/:id/first-cut`：revision；要求每个 Scene 有成功选片。按顺序保存完整选片快照；签名只对 renderer版本、实际画布、有序任务 ID 做 SHA256。实际画布来自第一个选中任务的原始 ratio。相同渲染输入复用已完成文件，处理中返回已有输出，失败或文件缺失允许重建。
 - `POST /api/projects/:id/duplicate`：只复制 Brief、Creative Direction 与分镜，创建 user 来源项目，不复制视频/选择。
 - `GET/HEAD /api/media/tasks/:id`、`/api/media/outputs/:id`：受现有权限保护，支持 Range、HEAD 和 `?download=1`。只按数据库映射解析受限媒体根目录路径，不接受任意客户端文件路径。
 
-首次完成任务在同事务里仅对 selectedGenerationTaskId=null 的 Scene 设置选择，后续成功保留选择。UI 状态由有效选片、活动任务、匹配输出推导，不另存 projectStatus。编辑 Prompt/Creative Direction 不篡改历史生成或选片；选择、顺序、画幅、目标/镜头规划时长或标题变化时输出签名变化，界面提示重建。历史输出快照不覆盖。
+首次完成任务在同事务里仅对 selectedGenerationTaskId=null 的 Scene 设置选择，后续成功保留选择。UI 状态由有效选片、活动任务、匹配输出推导，不另存 projectStatus。编辑标题、Brief、Prompt、Creative Direction 或规划时长不篡改历史视频/选片，也不改变输出签名；换选片/播放顺序/实际画布才提示更新。旧输出读取时用同一算法重算签名匹配，不覆盖原快照。缺失本地输出文件不再显示可用下载；任务源过期与合并错误均保留明确提示。
 
 合并先缓存已选片段，再用 ffprobe 获取实际视频时长，统一画布、30fps、H.264/yuv420p、AAC/stereo/48kHz；缺音轨时填静音，有音轨时保留并按视频时长补齐。随后 concat copy 输出，文件临时写入后重命名。视频没有按规划秒数裁切或补帧，界面展示实际值。输出音频仅硬切，无新增音频编辑功能。处理错误保留选片；超过15分钟的遗留 processing 构建在读取项目时转为 failed，可重建。
 
 缓存目录默认 `.local-media`，被 Git 和 Docker build context 忽略；生产挂载 `/data/media`。需要 FFmpeg/ffprobe。初剪失败和过期源给出可操作错误，不自动调用模型替换。`public/examples/morning-brew` 是真实生成的稳定示例素材与无凭证清单；`seed-example.mjs` 幂等导入并且不发网络请求。本地初次安装显式执行 `npm run db:seed-example`，容器可执行 `node scripts/seed-example.mjs`；普通重启不恢复已删除 Example。
 
-媒体与 SQLite 需一起备份。单实例本地实现没有持久后台队列；页面关闭后当前服务请求可能完成，服务终止则构建转为可重试失败。未添加 MP4 下载埋点；已有 project_exported 指 JSON 导出，不可冒充 First Cut 完成率。
+媒体与 SQLite 需一起备份。单实例本地实现没有持久后台队列；页面关闭后当前服务请求可能完成，服务终止则构建转为可重试失败。完成输出与 first_cut_built 同事务写入。显式 MP4 下载GET在成功响应创建后记录 mp4_exported，按 outputId + exportId 去重；UUID 在响应创建前校验。project_exported 仍仅指 JSON；这些事件计数不能直接冒充完整项目转化率。
+
+## 媒体缩略图
+
+`GET/HEAD /api/media/thumbnails/:taskId` 复用现有视频缓存后用 FFmpeg 提取 JPEG 首帧，存于项目媒体目录，受相同会话保护。首帧与视频原文件同源，不生成新的模型内容。已有结果优先显示真实首帧；无结果或加载失败显示中性占位，播放错误可见。服务端错误不包含密钥；`.local-media` 不进 Git，Example 稳定视频资源保留仓库中。

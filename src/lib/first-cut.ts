@@ -2,11 +2,17 @@ import { mkdir, access } from "node:fs/promises";
 import { dirname } from "node:path";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { z } from "zod";
-import { AppError, briefSchema, revisionSchema, sceneSchema } from "./domain";
+import { AppError, briefSchema, revisionSchema, readScene, firstCutSnapshotSchema } from "./domain";
 import { selectionKey, selectionSnapshot } from "./project-state";
+import { event } from "./service";
 import { cacheClip, concatenateClips, mediaPath } from "./media";
 
-export async function buildFirstCut(db: PrismaClient, id: string, input: unknown) {
+export async function buildFirstCut(
+  db: PrismaClient,
+  id: string,
+  input: unknown,
+  context = { sessionId: "local-build" },
+) {
   const { revision } = z.object({ revision: revisionSchema }).parse(input);
   const p = await db.project.findUnique({
     where: { id },
@@ -16,7 +22,7 @@ export async function buildFirstCut(db: PrismaClient, id: string, input: unknown
   if (p.revision !== revision)
     throw new AppError("VERSION_CONFLICT", "Your project changed. Reload before assembling.", 409);
   const scenes = p.scenes.map((scene) => ({
-    ...sceneSchema.parse(scene.content),
+    ...readScene(scene.content),
     id: scene.id,
     selectedGenerationTaskId: scene.selectedGenerationTaskId,
   }));
@@ -32,9 +38,13 @@ export async function buildFirstCut(db: PrismaClient, id: string, input: unknown
     (scene) => p.tasks.find((task) => task.id === scene.taskId)!,
   );
   const modes = new Set(selected.map((task) => task.mode));
-  let output = await db.projectOutput.findUnique({
-    where: { projectId_selectionKey: { projectId: id, selectionKey: key } },
-  });
+  let output =
+    (
+      await db.projectOutput.findMany({ where: { projectId: id }, orderBy: { updatedAt: "desc" } })
+    ).find((output) => {
+      const parsed = firstCutSnapshotSchema.safeParse(output.snapshot);
+      return parsed.success && selectionKey(parsed.data) === key;
+    }) || null;
   if (output?.status === "completed" && output.mediaPath) {
     try {
       await access(mediaPath(output.mediaPath));
@@ -89,15 +99,27 @@ export async function buildFirstCut(db: PrismaClient, id: string, input: unknown
     const destination = mediaPath(outputKey);
     await mkdir(dirname(destination), { recursive: true });
     const duration = await concatenateClips(paths, destination, snapshot.aspectRatio);
-    return await db.projectOutput.update({
-      where: { id: output.id },
-      data: {
-        status: "completed",
-        mediaPath: outputKey,
-        duration,
-        completedAt: new Date(),
-        errorMessage: null,
-      },
+    return await db.$transaction(async (tx) => {
+      const completed = await tx.projectOutput.update({
+        where: { id: output.id },
+        data: {
+          status: "completed",
+          mediaPath: outputKey,
+          duration,
+          completedAt: new Date(),
+          errorMessage: null,
+        },
+      });
+      await event(
+        tx,
+        p,
+        context,
+        "first_cut_built",
+        completed.mode,
+        { outputId: completed.id },
+        `first-cut:${completed.id}`,
+      );
+      return completed;
     });
   } catch (error) {
     const message =

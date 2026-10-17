@@ -89,7 +89,7 @@ model Review {
   id        String         @id @default(cuid())
   taskId    String         @unique
   task      GenerationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  rating    Int
+  rating    Int?
   feedback  String
   updatedAt DateTime       @updatedAt
 }

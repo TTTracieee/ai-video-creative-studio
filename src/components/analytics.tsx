@@ -51,6 +51,7 @@ export default function Analytics() {
           >
             <option value="mock">Mock execution</option>
             <option value="live">Live</option>
+            <option value="mixed">Mixed media</option>
           </select>
         </label>
         <label>
@@ -123,11 +124,14 @@ export default function Analytics() {
                 </p>
               </div>
               <div className="metric">
-                <span>AVERAGE USER RATING</span>
-                <strong data-testid="average-rating">
-                  {result.averageRating === null ? "—" : `${result.averageRating.toFixed(1)} / 5`}
-                </strong>
-                <p>{result.ratingCount} latest task reviews</p>
+                <span>First cuts built</span>
+                <strong data-testid="first-cuts-built">{result.firstCutsBuilt}</strong>
+                <p>Unique outputs completed in this period</p>
+              </div>
+              <div className="metric">
+                <span>MP4 exports</span>
+                <strong data-testid="mp4-exports">{result.mp4Exports}</strong>
+                <p>Tracked download requests, not JSON exports</p>
               </div>
             </div>
             <section className="panel">
@@ -171,8 +175,10 @@ export default function Analytics() {
                   terminal by its end.
                 </li>
                 <li>
-                  Rating: average latest saved rating for completed attempts in the cohort.
-                  Revisions do not add extra reviews.
+                  First cuts built counts completed output artifacts once. MP4 exports counts
+                  explicit workspace download requests; browser Range retries reuse the same export
+                  ID. It cannot confirm that a user saved the file. Direct media links without an
+                  export ID are not tracked.
                 </li>
                 <li>Failure: failed / terminal attempts. Retry: retry attempts / all attempts.</li>
                 <li>

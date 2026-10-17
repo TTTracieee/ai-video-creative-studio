@@ -23,7 +23,7 @@ npm run dev
 
 首页打开 **Morning Brew / Example** 即可观看并导出预制 First Cut。点击 **Duplicate plan** 复制 Brief、Creative Direction 与分镜，生成结果不复制。创建自己的项目后：
 
-1. 在 **Plan** 生成并编辑分镜、保存共享 Creative Direction。
+1. 在 **Plan** 编辑 Brief、共享 Creative Direction 与结构化 Scene，用 **Save Plan** 一次保存；未保存区域会明确列出。
 2. 在 **Generate & Select** 生成镜头；首次成功自动选中，后续版本由用户明确选择。
 3. 全部镜头选中后，在 **Preview & Export** 点击 **Build first cut**，播放并 **Export MP4**。
 
@@ -32,11 +32,14 @@ npm run dev
 ## 已实现与边界
 
 - Brief、Creative Direction 和可编辑分镜合并在 Plan；共享说明只作用于未来生成。
-- Scene 内的版本选择、折叠历史、重试、可选评分和不可变 Prompt 快照。
-- 项目进度、First Cut 顺序拼接、选片快照、实际时长、MP4 下载及旧预览重建提示。
+- Scene 默认编辑五项镜头字段，确定性组合 Final Prompt；Advanced 提供显式 Override 与提交预览。
+- Scene 内的版本选择、折叠历史、重试、可选私人 Review Notes 和不可变 Prompt 快照。
+- 项目进度、First Cut 顺序拼接、实际时长与 MP4 下载；仅选片/顺序/实际渲染画布变化需更新初剪，改标题或未来生成用的文字不会使现有视频过期。
 - 已完成结果通过应用缓存到本地媒体目录；预制 Example 使用稳定仓库资源，无需模型请求。
-- Zod、版本检查、数据库持久化、幂等任务、访问保护；Tasks 与 Analytics 降为次级工具。
+- Zod、版本检查、数据库持久化、幂等任务、访问保护；Tasks 与 Analytics 是次级工具，内部区分 First Cut 构建、MP4 导出响应和 JSON 导出。
 - Qwen + 万相 3.0 真实三镜头 Example；其他 Provider 保留协议测试，验证范围见 [TEST_RESULTS.md](TEST_RESULTS.md)。
+
+新项目不预填咖啡设定；Morning Brew 仅作为显式 Example。已有视频优先显示真实首帧，无视频使用中性占位。JSON Export、全量重写与删除位于 More。
 
 不提供时间线、转场、字幕、BGM 或配音编辑；原片声音直接拼接，声音和画面可能不连续。尚未验证 Railway 上线、Docker 镜像运行或真实用户研究。
 

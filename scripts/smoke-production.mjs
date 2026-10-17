@@ -59,6 +59,7 @@ try {
   server = startServer();
   await waitReady();
   assert.equal((await fetch(`${base}/api/media/outputs/permission-check?download=1`)).status, 401);
+  assert.equal((await fetch(`${base}/api/media/thumbnails/permission-check`)).status, 401);
   const protectedExample = await fetch(`${base}/examples/morning-brew/first-cut.mp4`, {
     redirect: "manual",
   });
@@ -152,6 +153,29 @@ try {
   assert.equal(chosen.progress.selectedCount, 3);
   const cut = await api(`projects/${created.id}/first-cut`, "POST", { revision: chosen.revision });
   assert.equal(cut.status, "completed");
+  const thumbnail = await fetch(`${base}/api/media/thumbnails/${task.id}`, { headers: { cookie } });
+  assert.equal(thumbnail.status, 200);
+  assert.equal(thumbnail.headers.get("content-type"), "image/jpeg");
+  assert.equal(
+    Buffer.from(await thumbnail.arrayBuffer())
+      .subarray(0, 2)
+      .toString("hex"),
+    "ffd8",
+  );
+  const reused = await api(`projects/${created.id}/first-cut`, "POST", {
+    revision: chosen.revision,
+  });
+  assert.equal(reused.id, cut.id);
+  const trackedUrl = `${base}/api/media/outputs/${cut.id}?download=1&exportId=${randomUUID()}`;
+  for (let i = 0; i < 2; i++) {
+    const tracked = await fetch(trackedUrl, { headers: { cookie, range: "bytes=0-31" } });
+    assert.equal(tracked.status, 206);
+    await tracked.arrayBuffer();
+  }
+  await fetch(trackedUrl, { method: "HEAD", headers: { cookie } });
+  const metrics = await api("analytics?mode=mock&origin=demo");
+  assert.equal(metrics.firstCutsBuilt, 1);
+  assert.equal(metrics.mp4Exports, 1);
   const mediaUrl = `${base}/api/media/outputs/${cut.id}?download=1`;
   assert.equal((await fetch(mediaUrl)).status, 401);
   const range = await fetch(mediaUrl, { headers: { cookie, range: "bytes=0-31" } });
@@ -182,7 +206,7 @@ try {
   const cleared = logout.headers.get("set-cookie");
   assert.ok(/max-age=0/i.test(cleared) || /expires=Thu, 01 Jan 1970/i.test(cleared));
   console.log(
-    "PASS: production access protection, login, secure cookies, secret isolation, origin protection, process restart with project/task/selection/output recovery, protected MP4 range/download/HEAD, and logout (isolated database).",
+    "PASS: production access protection, login, secure cookies, secret isolation, origin protection, process restart with project/task/selection/output recovery, protected JPEG thumbnails, MP4 range/download/HEAD, build/export event deduplication, and logout (isolated database).",
   );
 } finally {
   await stopServer();
