@@ -82,3 +82,9 @@
 新增 4 项服务测试：空项目删除与参数校验、分镜/已完成和失败任务/Review/事件级联清理、Pending/Processing 阻止删除、版本冲突保护及其他项目保留。新增 1 条浏览器场景：详情页和项目卡片删除、取消保留、活动任务阻止、跨域 DELETE 拒绝、关联任务消失及刷新后不可恢复。全套测试为 55 项与 5 条 E2E，均通过；未删除日常数据库中的任何项目，也未调用付费 API。
 
 生产冒烟已补充未登录 DELETE 返回 401 的断言并实际通过；登录、Cookie、跨域保护和进程重启恢复也再次通过。项目删除不需要数据库迁移，沿用现有级联外键。
+
+## 浏览器扩展水合警告修复（2026-10-17）
+
+新增 `tests/e2e/hydration.spec.ts`，在文档解析时、React 水合前模拟 Monica 注入 `body` 的 `monica-id` 和 `monica-version` 属性。修复前实际复现同一条水合警告，测试失败；仅在根布局 `body` 添加 `suppressHydrationWarning` 后，同一测试通过（1 项，约 7.2 秒），并验证首页跳转和 Morning Brew 示例表单交互。未全局过滤控制台错误，其他组件仍进行水合检查。
+
+本次实际执行 `npm run test:e2e -- tests/e2e/hydration.spec.ts`、`npm run typecheck`、`npm run lint` 和 `npm run build`，均通过。扩展属性为测试模拟，未自动安装或操作真实扩展；此前的 55 项业务测试、5 条流程 E2E 和生产冒烟未在本次重新执行。未修改数据库或调用付费 API。
