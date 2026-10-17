@@ -1,0 +1,48 @@
+{
+  "name": "ai-video-creative-studio",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --hostname 127.0.0.1",
+    "build": "NEXT_TELEMETRY_DISABLED=1 prisma generate && next build --webpack",
+    "start": "NEXT_TELEMETRY_DISABLED=1 next start --hostname 0.0.0.0",
+    "typecheck": "NEXT_TELEMETRY_DISABLED=1 next typegen && tsc --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "db:generate": "prisma generate",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:studio": "prisma studio",
+    "postinstall": "prisma generate",
+    "test:production": "node scripts/smoke-production.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "6.19.0",
+    "lucide-react": "^0.468.0",
+    "next": "^16.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "zod": "^4.1.0",
+    "prisma": "6.19.0"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.2",
+    "effect": "^3.20.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@tailwindcss/postcss": "^4.1.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^16.0.0",
+    "prettier": "3.6.2",
+    "tailwindcss": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.5"
+  }
+}

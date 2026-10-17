@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id               String   @id @default(cuid())
+  name             String
+  brief            Json
+  profile          Json
+  profileVersion   Int      @default(1)
+  revision         Int      @default(0)
+  origin           String   @default("user")
+  storyboardMode   String?
+  storyboardAt     DateTime?
+  briefUpdatedAt   DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  scenes           Scene[]
+  tasks            GenerationTask[]
+  events           Event[]
+}
+
+model Scene {
+  id         String @id @default(cuid())
+  projectId  String
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position   Int
+  content    Json
+  tasks      GenerationTask[]
+  @@index([projectId, position])
+}
+
+model GenerationTask {
+  id               String @id @default(cuid())
+  projectId        String
+  project          Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sceneId          String?
+  scene            Scene? @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  snapshot         Json
+  provider         String
+  mode             String
+  status           String @default("pending")
+  providerTaskId   String?
+  scenario         String @default("success")
+  retryOfId        String?
+  idempotencyKey   String @unique
+  createdAt        DateTime @default(now())
+  startedAt        DateTime?
+  completedAt      DateTime?
+  errorCode        String?
+  errorMessage     String?
+  resultUrl        String?
+  review           Review?
+  @@index([projectId, createdAt])
+}
+
+model Review {
+  id        String @id @default(cuid())
+  taskId    String @unique
+  task      GenerationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  rating    Int
+  feedback  String
+  updatedAt DateTime @updatedAt
+}
+
+model Event {
+  id          String @id @default(cuid())
+  name        String
+  timestamp   DateTime @default(now())
+  sessionId   String
+  projectId   String
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  origin      String
+  mode        String
+  properties  Json
+  dedupKey    String @unique
+  @@index([name, timestamp])
+}
