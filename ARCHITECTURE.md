@@ -63,6 +63,8 @@ Profile 的四个字段是共享文本说明。最终 Prompt = 镜头 Prompt + �
 
 ## 视频 Provider 与状态
 
+万相 3.0 通过 `VIDEO_PROVIDER=wan3.0` 固定为 `wan3.0-video` / 480P / 2–30 秒 / Prompt 20,000 字符。只实现纯文生视频，提交 `input.prompt`，使用 `resolution=480P`、`ratio`、固定镜头 `duration`、`audio=true`、`watermark=false`、`prompt_extend=false`，不混用旧版 `size` 参数。本次按官方文档只允许业务空间专属域名，未配置时在提交前报错。异步状态及结果查询复用下述逻辑；历史任务仍按保存的 Provider 查询与重试，不随当前配置换模型。`DASHSCOPE_MODEL=qwen3.8-flash` 复用现有非思考 JSON Object Adapter，并保留旧 Qwen 型号的显式配置。[万相 3.0 协议](https://help.aliyun.com/zh/model-studio/wan3-video-generation-api-reference)、[Qwen JSON 输出](https://help.aliyun.com/zh/model-studio/qwen-structured-output)
+
 真实万相通过 `wan2.2` / `wan2.6` 固定模型与分辨率，避免修改默认配置后把历史重试改成另一收费规格。前者为 wan2.2-t2v-plus / 480P / 5 秒 / Prompt 800 字符，后者为 wan2.6-t2v / 720P / 2–15 秒 / Prompt 1,500 字符。同一百炼 Key 和 Base URL 复用；提交请求使用 Bearer、X-DashScope-Async=enable 和 `/api/v1/services/aigc/video-generation/video-synthesis`，查询 `/api/v1/tasks/:id`，约 15 秒轮询。Prompt 扩写关闭，始终传入保存的最终 Prompt；Qwen 根据共享档案占用和视频能力预留字数，用户输入不截断。
 
 万相 Pending/Running 映射为 pending/processing，Succeeded 为 completed，Failed/Canceled/Unknown 为 failed。HTTP 5xx/408、网络失败或无可确认任务 ID 的提交响应标为 SUBMISSION_UNKNOWN，不重发；查询错误保留原任务。时间采用本地观察到开始/终态的时刻，耗时包含轮询延迟，不假装具有服务商精确计时。返回的 HTTPS 视频 URL 约 24 小时有效，本版不下载或永久归档媒体。配置接口仅返回缺失环境变量的名称，缺少配置时工作台明确提示且禁用生成。

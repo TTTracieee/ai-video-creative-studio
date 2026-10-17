@@ -160,10 +160,11 @@ export class QwenStoryboardProvider implements StoryboardProvider {
     prompt: string,
     parse: (text: string) => T,
   ): Promise<T> {
+    let validationFeedback = "";
     for (let attempt = 0; attempt < 2; attempt++) {
       const text = await this.request(
         schema,
-        `${prompt}${attempt ? "\nThe previous output failed validation. Carefully satisfy the JSON schema, scene count and exact durations." : ""}`,
+        `${prompt}${attempt ? `\nThe previous output failed validation. Correct these errors: ${validationFeedback}. Carefully satisfy the JSON schema, scene count and exact durations.` : ""}`,
       );
       try {
         return parse(text);
@@ -172,10 +173,19 @@ export class QwenStoryboardProvider implements StoryboardProvider {
           !(error instanceof SyntaxError || error instanceof ZodError || error instanceof AppError)
         )
           throw error;
+        validationFeedback =
+          error instanceof ZodError
+            ? error.issues
+                .slice(0, 8)
+                .map((issue) => `${issue.path.join(".") || "output"}: ${issue.message}`)
+                .join("; ")
+            : error instanceof AppError
+              ? error.message
+              : "Return a valid JSON object without Markdown or surrounding text";
         if (attempt === 1)
           throw new AppError(
             "LLM_VALIDATION_FAILED",
-            "Qwen output failed validation twice. Your existing storyboard has been kept.",
+            `Qwen output failed validation twice. ${validationFeedback}. Your existing storyboard has been kept.`,
             422,
           );
       }

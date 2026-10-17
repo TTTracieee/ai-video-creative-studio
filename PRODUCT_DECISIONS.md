@@ -24,9 +24,11 @@ Next.js 单体减少部署环节；SQLite + Prisma 支持真实持久化和迁�
 
 ## 支付方式与成本取舍
 
-2026-10-17 为满足人民币支付、成本和完整真实生成的约束，采用阿里云百炼 Qwen 分镜 + 万相镜头生成；默认 `qwen-flash` + `wan2.2-t2v-plus` / 480P。阿里云国内站支持支付宝、银联等充值方式。Mock 保留用于没有账号时的明确演示，不能作为真实生成验收。此选择由支付约束和公开价格支持，不代表已证明任何模型的生成质量。[充值说明](https://help.aliyun.com/zh/document_detail/324650.html)、[模型价格](https://help.aliyun.com/zh/model-studio/model-pricing)
+2026-10-17 为满足人民币支付、成本和完整真实生成的约束，采用阿里云百炼 Qwen 分镜 + 万相镜头生成；早期配置为 `qwen-flash` + `wan2.2-t2v-plus` / 480P。阿里云国内站支持支付宝、银联等充值方式。Mock 保留用于没有账号时的明确演示，不能作为真实生成验收。此选择由支付约束和公开价格支持，不代表已证明任何模型的生成质量。[充值说明](https://help.aliyun.com/zh/document_detail/324650.html)、[模型价格](https://help.aliyun.com/zh/model-studio/model-pricing)
 
 采用非思考 JSON Object + 服务端 Zod/时长验证，不把 JSON 格式能力描述成严格 Schema 保证。Qwen 为共享档案预留字数，输出校验失败最多修复一次。万相 2.2 固定 5 秒和 800 字符，30 秒默认五镜头不静默修改：可显式编辑为六个 5 秒镜头，或选择支持 6 秒且更贵的万相 2.6。任务结果不明时不自动重发，缺少 Key 时禁用生成。价格是估算；真实账号实际生成并播放成功之前不记录为真实付费接通，不替用户注册或充值。[结构化输出](https://help.aliyun.com/en/model-studio/qwen-structured-output)、[万相接口](https://help.aliyun.com/en/model-studio/legacy-wan-text-to-video-api-reference)
+
+同日根据实际账号可见免费额度，将当前接入示例调整为 `qwen3.8-flash` + `wan3.0-video` / 480P，优先使用已确认可用的额度减少首次验收费用。万相 3.0 使用新 `resolution`/`ratio` 参数和业务空间专属域名，支持原来的 5/6 秒镜头，仍按 Scene 分别提交。免费额度按型号独立，Wan 3.0 的额度不能抵扣旧版调用；30 秒只够有限次数验证，首次仅提交一个 5 秒镜头。将原价、活动价、账号剩余额度与真实验收分开记录，不把新人额度描述成永久免费。[价格与额度](https://help.aliyun.com/zh/model-studio/model-pricing)、[接入域名](https://help.aliyun.com/zh/model-studio/regions)
 
 ## 项目删除的归属边界
 

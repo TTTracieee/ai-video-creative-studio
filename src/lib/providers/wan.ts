@@ -7,7 +7,7 @@ import {
   type VideoProvider,
 } from "./types";
 
-type WanModel = "wan2.2-t2v-plus" | "wan2.6-t2v";
+type WanModel = "wan2.2-t2v-plus" | "wan2.6-t2v" | "wan3.0-video";
 const envelopeSchema = z.object({
   code: z.string().nullable().optional(),
   output: z
@@ -19,7 +19,7 @@ const envelopeSchema = z.object({
     .optional(),
 });
 
-function apiUrl(path: string) {
+function apiUrl(path: string, workspaceEndpoint: boolean) {
   const base = process.env.DASHSCOPE_BASE_URL?.trim();
   if (!base)
     throw new AppError(
@@ -44,6 +44,7 @@ function apiUrl(path: string) {
       url.port ||
       url.search ||
       url.hash ||
+      (workspaceEndpoint && !url.hostname.endsWith(".maas.aliyuncs.com")) ||
       url.pathname.replace(/\/$/, "") !== "/compatible-mode/v1"
     )
       throw new Error("Invalid endpoint");
@@ -52,7 +53,9 @@ function apiUrl(path: string) {
   } catch {
     throw new AppError(
       "INVALID_WAN_CONFIG",
-      "Use the official HTTPS compatible-mode/v1 Base URL for the same workspace and region as your API key.",
+      workspaceEndpoint
+        ? "Wan 3.0 requires the workspace-specific HTTPS compatible-mode/v1 Base URL from your console, in the same region as your API key."
+        : "Use the official HTTPS compatible-mode/v1 Base URL for the same workspace and region as your API key.",
       503,
     );
   }
@@ -66,14 +69,25 @@ export class WanVideoProvider implements VideoProvider {
     private transport: typeof fetch = fetch,
   ) {}
   get name() {
+    if (this.model === "wan3.0-video") return "wan3.0";
     return this.model === "wan2.2-t2v-plus" ? "wan2.2" : "wan2.6";
   }
   get description() {
+    if (this.model === "wan3.0-video")
+      return "Wan 3.0 · 480p clips with audio · 2–30s · 20,000 prompt characters. Beijing list price: CNY 0.30 per second before discounts or free quota. Result links expire after 24 hours.";
     return this.model === "wan2.2-t2v-plus"
       ? "Wan 2.2 · 480p silent clips · exactly 5s · 800 prompt characters. Beijing reference: CNY 0.70 per clip. Result links expire after 24 hours."
       : "Wan 2.6 · 720p clips · 2–15s · 1,500 prompt characters. Beijing reference: CNY 0.60 per second. Result links expire after 24 hours.";
   }
   get capabilities() {
+    if (this.model === "wan3.0-video")
+      return {
+        minDuration: 2,
+        maxDuration: 30,
+        integerDuration: true,
+        aspectRatios: ["9:16", "16:9", "1:1"],
+        maxPromptLength: 20000,
+      };
     const lowCost = this.model === "wan2.2-t2v-plus";
     return {
       minDuration: lowCost ? 5 : 2,
@@ -91,7 +105,7 @@ export class WanVideoProvider implements VideoProvider {
         "Set DASHSCOPE_API_KEY on the server and enable Wan model access in the same region.",
         503,
       );
-    const url = apiUrl(path);
+    const url = apiUrl(path, this.model === "wan3.0-video");
     let response: Response;
     try {
       response = await this.transport(url, {
@@ -161,11 +175,21 @@ export class WanVideoProvider implements VideoProvider {
     const data = await this.request("/services/aigc/video-generation/video-synthesis", {
       model: this.model,
       input: { prompt: task.snapshot.finalPrompt },
-      parameters: {
-        size: sizes[task.snapshot.aspectRatio],
-        duration: task.snapshot.scene.duration,
-        prompt_extend: false,
-      },
+      parameters:
+        this.model === "wan3.0-video"
+          ? {
+              resolution: "480P",
+              ratio: task.snapshot.aspectRatio,
+              duration: task.snapshot.scene.duration,
+              prompt_extend: false,
+              audio: true,
+              watermark: false,
+            }
+          : {
+              size: sizes[task.snapshot.aspectRatio],
+              duration: task.snapshot.scene.duration,
+              prompt_extend: false,
+            },
     });
     return { providerTaskId: data.task_id };
   }

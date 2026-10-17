@@ -179,11 +179,13 @@ test("simulated Wan config shows limits and blocks incompatible clips before sub
       videoDescription:
         model === "wan2.2"
           ? "Wan 2.2 · 480p silent clips · exactly 5s · 800 prompt characters."
-          : "Wan 2.6 · 720p clips · 2–15s · 1,500 prompt characters.",
+          : model === "wan3.0"
+            ? "Wan 3.0 · 480p clips with audio · 2–30s · 20,000 prompt characters."
+            : "Wan 2.6 · 720p clips · 2–15s · 1,500 prompt characters.",
       capabilities: {
         minDuration: model === "wan2.2" ? 5 : 2,
-        maxDuration: model === "wan2.2" ? 5 : 15,
-        maxPromptLength: model === "wan2.2" ? 800 : 1500,
+        maxDuration: model === "wan2.2" ? 5 : model === "wan3.0" ? 30 : 15,
+        maxPromptLength: model === "wan2.2" ? 800 : model === "wan3.0" ? 20000 : 1500,
       },
     };
     await route.fulfill({ response: result, json: payload });
@@ -217,6 +219,13 @@ test("simulated Wan config shows limits and blocks incompatible clips before sub
   await expect(
     page.getByRole("button", { name: "Generate all clips", exact: true }),
   ).toBeDisabled();
+  model = "wan3.0";
+  await page.reload();
+  await expect(page.getByText("Wan 3.0 · 480p clips", { exact: false })).toBeVisible();
+  await expect(
+    page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }),
+  ).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Generate all clips", exact: true })).toBeEnabled();
   configured = false;
   await page.reload();
   await expect(

@@ -17,5 +17,6 @@ export function videoProvider(name = process.env.VIDEO_PROVIDER || "mock"): Vide
   if (name === "bach-v1") return new BachV1VideoProvider();
   if (name === "wan2.2") return new WanVideoProvider("wan2.2-t2v-plus");
   if (name === "wan2.6") return new WanVideoProvider("wan2.6-t2v");
+  if (name === "wan3.0") return new WanVideoProvider("wan3.0-video");
   throw new AppError("PROVIDER_UNAVAILABLE", "Video provider is not configured.", 503);
 }

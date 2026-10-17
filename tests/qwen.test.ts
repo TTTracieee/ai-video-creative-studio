@@ -84,7 +84,7 @@ describe("Qwen Chat Completions adapter (simulated transport, no paid API calls)
 
   it("uses the configured model and current profile for single-scene regeneration", async () => {
     configured();
-    vi.stubEnv("DASHSCOPE_MODEL", "qwen3.7-flash");
+    vi.stubEnv("DASHSCOPE_MODEL", "qwen3.8-flash");
     vi.stubEnv("DASHSCOPE_BASE_URL", `${baseUrl}/`);
     const [scene] = await new MockStoryboardProvider().generate(sampleBrief, profile);
     const transport = vi
@@ -102,7 +102,9 @@ describe("Qwen Chat Completions adapter (simulated transport, no paid API calls)
     expect(result.title).toBe("Alternate framing");
     expect(result.duration).toBe(scene.duration);
     const body = JSON.parse(transport.mock.calls[0][1]!.body as string);
-    expect(body.model).toBe("qwen3.7-flash");
+    expect(body.model).toBe("qwen3.8-flash");
+    expect(body.enable_thinking).toBe(false);
+    expect(body.response_format).toEqual({ type: "json_object" });
     expect(body.messages[1].content).toContain(currentProfile.characterIdentity);
     expect(body.messages[1].content).toContain("Rewrite scene 2");
     expect(scene.title).not.toBe(result.title);
@@ -147,6 +149,32 @@ describe("Qwen Chat Completions adapter (simulated transport, no paid API calls)
     ).rejects.toMatchObject({ code: "LLM_VALIDATION_FAILED" });
     expect(transport).toHaveBeenCalledTimes(2);
     expect(scene.duration).toBe(5);
+  });
+
+  it("provides field-specific repair feedback without copying invalid model content", async () => {
+    configured();
+    const scenes = await new MockStoryboardProvider().generate(sampleBrief, profile);
+    const invalidContent = "private generated content ".repeat(8);
+    const valid = scenes.map((scene) => ({ ...scene, consistencyNotes: "" }));
+    const transport = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response(
+          output(
+            JSON.stringify({
+              scenes: valid.map((scene) => ({ ...scene, consistencyNotes: invalidContent })),
+            }),
+          ),
+        ),
+      )
+      .mockResolvedValueOnce(response(output(JSON.stringify({ scenes: valid }))));
+    await new QwenStoryboardProvider(transport).generate(sampleBrief, profile, {
+      maxPromptLength: 20000,
+    });
+    const repair = JSON.parse(transport.mock.calls[1][1]!.body as string).messages[1].content;
+    expect(repair).toContain("scenes.0.consistencyNotes");
+    expect(repair).toContain("40");
+    expect(repair).not.toContain(invalidContent);
   });
 
   it("does not repeat HTTP errors or expose provider error payloads", async () => {

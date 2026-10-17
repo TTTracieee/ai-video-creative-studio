@@ -41,6 +41,77 @@ async function fixture() {
 }
 
 describe("Wan adapters (official contracts with simulated transport; no paid API calls)", () => {
+  it.each(["9:16", "16:9", "1:1"] as const)(
+    "submits Wan 3.0 %s with explicit 480P, ratio and audio instead of legacy size",
+    async (aspectRatio) => {
+      configured();
+      vi.stubEnv("VIDEO_PROVIDER", "wan3.0");
+      const task = await fixture();
+      task.snapshot.aspectRatio = aspectRatio;
+      task.snapshot.scene.duration = 6;
+      const transport = vi.fn<typeof fetch>().mockResolvedValue(response(output()));
+      const provider = new WanVideoProvider("wan3.0-video", transport);
+      expect(videoProvider().name).toBe("wan3.0");
+      expect(provider.capabilities).toMatchObject({
+        minDuration: 2,
+        maxDuration: 30,
+        maxPromptLength: 20000,
+      });
+      expect(await provider.submit(task)).toEqual({ providerTaskId: "wan-test-task" });
+      expect(transport.mock.calls[0][0]).toBe(
+        "https://test-workspace.cn-beijing.maas.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis",
+      );
+      const init = transport.mock.calls[0][1]!;
+      expect(init.headers).toMatchObject({
+        Authorization: "Bearer synthetic-wan-test-key",
+        "X-DashScope-Async": "enable",
+      });
+      expect(JSON.parse(init.body as string)).toEqual({
+        model: "wan3.0-video",
+        input: { prompt: task.snapshot.finalPrompt },
+        parameters: {
+          resolution: "480P",
+          ratio: aspectRatio,
+          duration: 6,
+          prompt_extend: false,
+          audio: true,
+          watermark: false,
+        },
+      });
+    },
+  );
+
+  it("enforces Wan 3.0 duration and prompt boundaries without silent truncation", async () => {
+    configured();
+    const task = await fixture();
+    const transport = vi.fn<typeof fetch>().mockImplementation(async () => response(output()));
+    const provider = new WanVideoProvider("wan3.0-video", transport);
+    for (const duration of [1, 31, 2.5]) {
+      task.snapshot.scene.duration = duration;
+      await expect(provider.submit(task)).rejects.toMatchObject({ code: "UNSUPPORTED_DURATION" });
+    }
+    task.snapshot.scene.duration = 5;
+    task.snapshot.finalPrompt = "x".repeat(20001);
+    await expect(provider.submit(task)).rejects.toMatchObject({ code: "PROMPT_TOO_LONG" });
+    expect(transport).not.toHaveBeenCalled();
+    task.snapshot.finalPrompt = "x".repeat(20000);
+    for (const duration of [2, 30]) {
+      task.snapshot.scene.duration = duration;
+      await provider.submit(task);
+    }
+    expect(transport).toHaveBeenCalledTimes(2);
+  });
+
+  it("requires the documented Wan 3.0 workspace endpoint before submission", async () => {
+    configured();
+    vi.stubEnv("DASHSCOPE_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1");
+    const transport = vi.fn<typeof fetch>();
+    await expect(
+      new WanVideoProvider("wan3.0-video", transport).submit(await fixture()),
+    ).rejects.toMatchObject({ code: "INVALID_WAN_CONFIG" });
+    expect(transport).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["9:16", "480*832"],
     ["16:9", "832*480"],
@@ -146,15 +217,13 @@ describe("Wan adapters (official contracts with simulated transport; no paid API
     configured();
     const task = await fixture();
     const now = new Date();
-    const transport = vi
-      .fn<typeof fetch>()
-      .mockResolvedValue(
-        response(
-          output("SUCCEEDED", {
-            video_url: "https://example.com/generated-contract-fixture.mp4?Expires=123",
-          }),
-        ),
-      );
+    const transport = vi.fn<typeof fetch>().mockResolvedValue(
+      response(
+        output("SUCCEEDED", {
+          video_url: "https://example.com/generated-contract-fixture.mp4?Expires=123",
+        }),
+      ),
+    );
     expect(await new WanVideoProvider("wan2.2-t2v-plus", transport).getStatus(task, now)).toEqual({
       status: "completed",
       completedAt: now,
