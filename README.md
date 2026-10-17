@@ -29,11 +29,14 @@ npm run dev
 - Brief 校验、示例与保存；分镜字段编辑、增删、排序、单镜头重写和 JSON 导出。
 - 四字段 Visual Consistency Profile 自动引用，最终 Prompt 可检查，任务保留不可变输入快照。
 - 异步状态、失败重试、刷新恢复、评分反馈、历史记录与完整项目导出。
+- 项目卡片与详情页支持确认后永久删除项目，连同分镜、任务、Review 和事件一起清理；有 Pending/Processing 任务时阻止删除，确认框可查询任务状态。
 - 三项主要指标及基础失败/重试/耗时；终态成功率、来源及模式分离。
 - 百炼 Qwen + 万相 2.2/2.6 Adapter、OpenAI Structured Outputs Adapter、旧版 BACH v1 Adapter、服务端凭证与密码保护。
 - 产品研究假设、决策、测试方案和英文案例。
 
 **未验证：** 真实付费 API 调用、旧版 BACH 线上可用性、Docker 镜像运行及 Railway 上线、真实用户研究。没有真实用户增长或生成质量结论。实际运行过的检查以 [TEST_RESULTS.md](TEST_RESULTS.md) 为准。
+
+删除项目会移除其全部本地历史，Analytics 只统计剩余数据。删除不能撤销，不会取消服务商任务、退费或删除用户自行下载的视频；需要留档时先 Export project。单独删除 Scene 则仍保留历史生成尝试。
 
 ## Live 配置
 

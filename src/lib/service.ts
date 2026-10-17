@@ -76,6 +76,35 @@ export async function createProject(db: PrismaClient, input: unknown, context: C
     return p;
   });
 }
+export async function deleteProject(db: PrismaClient, id: string, input: unknown) {
+  const { revision } = z.object({ revision: revisionSchema }).parse(input);
+  return db.$transaction(async (tx) => {
+    const project = await tx.project.findUnique({
+      where: { id },
+      select: { id: true, revision: true },
+    });
+    if (!project) throw new AppError("NOT_FOUND", "Project not found.", 404);
+    if (project.revision !== revision)
+      throw new AppError(
+        "VERSION_CONFLICT",
+        "Project changed. Close this dialog and reopen it before deleting.",
+        409,
+      );
+    const active = { status: { in: ["pending", "processing"] } };
+    if (await tx.generationTask.count({ where: { projectId: id, ...active } }))
+      throw new AppError(
+        "ACTIVE_TASKS",
+        "This project still has active generation tasks. Wait for them to finish and refresh their status before deleting.",
+        409,
+      );
+    const result = await tx.project.deleteMany({
+      where: { id, revision, tasks: { none: active } },
+    });
+    if (result.count !== 1)
+      throw new AppError("VERSION_CONFLICT", "Project changed. Reload before deleting.", 409);
+    return { id, deleted: true };
+  });
+}
 export async function updateProject(
   db: PrismaClient,
   id: string,

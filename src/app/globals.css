@@ -651,11 +651,71 @@ label .field-help {
   gap: 20px;
 }
 .project-card {
+  position: relative;
   background: white;
   border: 1px solid var(--line);
   border-radius: 9px;
   overflow: hidden;
   transition: box-shadow 0.2s;
+}
+.project-card-link {
+  display: block;
+  height: 100%;
+}
+.project-delete {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: #ffffffed;
+  color: #9b5b50;
+  box-shadow: 0 1px 5px #00000014;
+}
+.project-delete:hover:not(:disabled) {
+  background: #fff1ea;
+}
+.btn.danger-outline {
+  color: #a85849;
+  border-color: #eed6ca;
+}
+.btn.danger {
+  color: white;
+  background: #a85849;
+  border-color: #a85849;
+}
+.btn.danger:hover:not(:disabled) {
+  background: #8f4538;
+}
+.delete-project-dialog {
+  width: min(480px, calc(100vw - 32px));
+  margin: auto;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--ink);
+  background: #fff;
+  box-shadow: 0 20px 80px #17291833;
+}
+.delete-project-dialog::backdrop {
+  background: #24322680;
+}
+.delete-project-dialog h2 {
+  font: 28px var(--serif);
+  margin: 0 0 16px;
+}
+.delete-project-dialog p {
+  font-size: 12px;
+  line-height: 1.7;
+  margin-bottom: 14px;
+  overflow-wrap: anywhere;
+}
+.delete-project-dialog .delete-record-counts {
+  padding: 10px 12px;
+  background: #f4f6ef;
+  border-radius: 6px;
+}
+.delete-project-dialog .button-row {
+  justify-content: flex-end;
+  margin-top: 24px;
 }
 .project-card:hover {
   box-shadow: 0 8px 20px #293b2410;

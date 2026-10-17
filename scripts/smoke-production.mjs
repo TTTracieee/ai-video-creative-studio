@@ -61,6 +61,16 @@ try {
   assert.equal(page.status, 307);
   assert.equal(new URL(page.headers.get("location"), base).pathname, "/login");
   assert.equal((await fetch(`${base}/api/projects`)).status, 401);
+  assert.equal(
+    (
+      await fetch(`${base}/api/projects/permission-check-only`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision: 0 }),
+      })
+    ).status,
+    401,
+  );
   const wrong = await fetch(`${base}/api/auth`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

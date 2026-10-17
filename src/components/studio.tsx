@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -101,6 +101,7 @@ export default function Studio() {
   const projectId = parts[0] === "projects" && parts[1] && parts[1] !== "new" ? parts[1] : null;
   const [projects, setProjects] = useState<ProjectView[]>([]);
   const [project, setProject] = useState<ProjectView | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ProjectView | null>(null);
   const [projectName, setProjectName] = useState("");
   const [brief, setBrief] = useState<Brief>({
     ...sampleBrief,
@@ -250,6 +251,35 @@ export default function Studio() {
     } finally {
       setBusy(false);
     }
+  }
+  function requestDeletion(id: string) {
+    return run(async () => setDeleteTarget(await api<ProjectView>(`projects/${id}`)));
+  }
+  function confirmDeletion() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    return run(async () => {
+      await api(`projects/${target.id}`, "DELETE", { revision: target.revision });
+      setDeleteTarget(null);
+      setProjects((list) => list.filter((p) => p.id !== target.id));
+      setTasks((list) => list.filter((t) => t.projectId !== target.id));
+      if (projectId === target.id) {
+        setProject(null);
+        router.replace("/");
+      }
+    }, "Project and related records deleted.");
+  }
+  function refreshDeletionStatus() {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    return run(async () => {
+      await Promise.all(
+        target.tasks
+          .filter((task) => ["pending", "processing"].includes(task.status))
+          .map((task) => api(`tasks/${task.id}/sync`, "POST", {})),
+      );
+      setDeleteTarget(await api<ProjectView>(`projects/${target.id}`));
+    });
   }
   function ensureSaved() {
     if (dirty)
@@ -412,7 +442,7 @@ export default function Studio() {
               successful connection. Generation is disabled until configured.
             </div>
           )}
-          {error && (
+          {error && !deleteTarget && (
             <div role="alert" className="message error">
               <span>{error}</span>
               <button onClick={() => setError("")} aria-label="Dismiss error">
@@ -506,26 +536,41 @@ export default function Studio() {
                   {projects.length ? (
                     <div className="project-grid">
                       {projects.map((p, i) => (
-                        <Link className="project-card" key={p.id} href={`/projects/${p.id}`}>
-                          <SceneArt index={i} />
-                          <div className="project-card-body">
-                            <div className="row-between">
-                              <span className="project-category">{p.brief.targetPlatform}</span>
-                              <span className="badge">
-                                {p.origin === "demo" ? "Sample" : "User-created"}
-                              </span>
+                        <article
+                          className="project-card"
+                          key={p.id}
+                          data-testid={`project-card-${p.id}`}
+                        >
+                          <Link className="project-card-link" href={`/projects/${p.id}`}>
+                            <SceneArt index={i} />
+                            <div className="project-card-body">
+                              <div className="row-between">
+                                <span className="project-category">{p.brief.targetPlatform}</span>
+                                <span className="badge">
+                                  {p.origin === "demo" ? "Sample" : "User-created"}
+                                </span>
+                              </div>
+                              <h3>{p.name}</h3>
+                              <p>
+                                {p.brief.duration}s plan <span>·</span> {p.brief.aspectRatio}{" "}
+                                <span>·</span> {p._count?.scenes || 0} scenes
+                              </p>
+                              <div className="project-card-foot">
+                                <span>{date(p.updatedAt)}</span>
+                                <ArrowRight size={16} />
+                              </div>
                             </div>
-                            <h3>{p.name}</h3>
-                            <p>
-                              {p.brief.duration}s plan <span>·</span> {p.brief.aspectRatio}{" "}
-                              <span>·</span> {p._count?.scenes || 0} scenes
-                            </p>
-                            <div className="project-card-foot">
-                              <span>{date(p.updatedAt)}</span>
-                              <ArrowRight size={16} />
-                            </div>
-                          </div>
-                        </Link>
+                          </Link>
+                          <button
+                            className="project-delete icon-btn"
+                            disabled={busy}
+                            aria-label={`Delete ${p.name}`}
+                            title="Delete project"
+                            onClick={() => requestDeletion(p.id)}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </article>
                       ))}
                       <Link href="/projects/new" className="new-project-card">
                         <Plus size={25} />
@@ -645,6 +690,13 @@ export default function Studio() {
                       </p>
                     </div>
                     <div className="button-row">
+                      <button
+                        className="btn danger-outline"
+                        disabled={busy}
+                        onClick={() => requestDeletion(project.id)}
+                      >
+                        <Trash2 size={16} /> Delete project
+                      </button>
                       <button
                         className="btn"
                         disabled={busy}
@@ -1195,8 +1247,97 @@ export default function Studio() {
             <span>Plan thoughtfully. Create intentionally.</span>
           </footer>
         </main>
+        {deleteTarget && (
+          <DeleteProjectDialog
+            project={deleteTarget}
+            busy={busy}
+            error={error}
+            onCancel={() => {
+              setDeleteTarget(null);
+              setError("");
+            }}
+            onConfirm={confirmDeletion}
+            onRefresh={refreshDeletionStatus}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+function DeleteProjectDialog({
+  project,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+  onRefresh,
+}: {
+  project: ProjectView;
+  busy: boolean;
+  error: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+  onRefresh: () => void;
+}) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => element?.close();
+  }, []);
+  const active = project.tasks.filter((t) => ["pending", "processing"].includes(t.status)).length;
+  return (
+    <dialog
+      ref={dialog}
+      role="alertdialog"
+      className="delete-project-dialog"
+      aria-labelledby="delete-project-title"
+      aria-describedby="delete-project-description"
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!busy) onCancel();
+      }}
+    >
+      <h2 id="delete-project-title">Delete project?</h2>
+      <p id="delete-project-description">
+        Permanently delete <strong>{project.name}</strong> and all its local records? This cannot be
+        undone.
+      </p>
+      <p className="delete-record-counts">
+        {project.scenes.length} scenes · {project.tasks.length} generation attempts ·{" "}
+        {project.tasks.filter((t) => t.review).length} reviews
+      </p>
+      <p>
+        The brief, shared visual profile and project events will also be removed. Unsaved edits will
+        be discarded. Export the project first if you need a copy.
+      </p>
+      <p>Deleting local records does not cancel provider jobs or refund generation charges.</p>
+      {active > 0 && (
+        <p className="message warning" role="status">
+          {active} generation tasks are still active. Wait for completion, then check their status
+          here before deleting.
+        </p>
+      )}
+      {error && (
+        <p className="message error" role="alert">
+          {error}
+        </p>
+      )}
+      <div className="button-row">
+        <button className="btn" disabled={busy} onClick={onCancel}>
+          Cancel
+        </button>
+        {active > 0 && (
+          <button className="btn" disabled={busy} onClick={onRefresh}>
+            Check task status
+          </button>
+        )}
+        <button className="btn danger" disabled={busy || active > 0} onClick={onConfirm}>
+          {busy ? <Loader2 size={15} className="spin" /> : <Trash2 size={15} />} Delete permanently
+        </button>
+      </div>
+    </dialog>
   );
 }
 

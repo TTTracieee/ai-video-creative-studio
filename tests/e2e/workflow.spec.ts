@@ -1,6 +1,72 @@
 import { test, expect } from "@playwright/test";
 import { sampleBrief } from "../../src/lib/domain";
 
+test("project deletion confirms scope, blocks active jobs and removes tasks from both entry points", async ({
+  page,
+  request,
+}) => {
+  const created = await request.post("/api/projects", {
+    data: { brief: { ...sampleBrief, brandName: "Deletion workflow fixture" }, origin: "demo" },
+  });
+  const { data: project } = await created.json();
+  await page.goto(`/projects/${project.id}`);
+  await page.getByRole("button", { name: "Generate storyboard", exact: true }).click();
+  await page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }).click();
+  await expect(page.getByTestId("task-pending")).toBeVisible();
+  await page.getByRole("button", { name: "Delete project", exact: true }).click();
+  const dialog = page.getByRole("alertdialog", { name: "Delete project?" });
+  await expect(dialog).toContainText("generation tasks are still active");
+  await expect(dialog.getByRole("button", { name: "Delete permanently" })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Check task status" })).toBeEnabled();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  const active = (await (await request.get(`/api/projects/${project.id}`)).json()).data;
+  const rejected = await request.delete(`/api/projects/${project.id}`, {
+    data: { revision: active.revision },
+  });
+  expect(rejected.status()).toBe(409);
+  expect((await rejected.json()).error.code).toBe("ACTIVE_TASKS");
+  await expect(page.getByTestId("task-completed")).toBeVisible({ timeout: 20000 });
+  await page.getByRole("button", { name: "Rate 4 stars", exact: true }).click();
+  await page.getByRole("button", { name: "Save review", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Review saved");
+  await page.getByRole("button", { name: "Delete project", exact: true }).click();
+  await expect(dialog).toContainText("3 scenes · 1 generation attempts · 1 reviews");
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect((await request.get(`/api/projects/${project.id}`)).ok()).toBe(true);
+  const crossOrigin = await request.delete(`/api/projects/${project.id}`, {
+    headers: { origin: "https://example.invalid" },
+    data: { revision: active.revision },
+  });
+  expect(crossOrigin.status()).toBe(403);
+  await page.getByRole("button", { name: "Delete project", exact: true }).click();
+  await dialog.getByRole("button", { name: "Delete permanently" }).click();
+  await expect(page).toHaveURL("http://127.0.0.1:3100/");
+  await page.reload();
+  await expect(page.getByTestId(`project-card-${project.id}`)).toHaveCount(0);
+  expect((await request.get(`/api/projects/${project.id}`)).status()).toBe(404);
+  const tasks = (await (await request.get("/api/tasks")).json()).data;
+  expect(tasks.filter((task: { projectId: string }) => task.projectId === project.id)).toHaveLength(
+    0,
+  );
+
+  const briefOnly = (
+    await (
+      await request.post("/api/projects", {
+        data: { brief: { ...sampleBrief, brandName: "Delete from card fixture" }, origin: "demo" },
+      })
+    ).json()
+  ).data;
+  await page.reload();
+  await page
+    .getByTestId(`project-card-${briefOnly.id}`)
+    .getByRole("button", { name: `Delete ${briefOnly.name}`, exact: true })
+    .click();
+  await expect(dialog).toContainText("0 scenes · 0 generation attempts · 0 reviews");
+  await dialog.getByRole("button", { name: "Delete permanently" }).click();
+  await expect(page.getByTestId(`project-card-${briefOnly.id}`)).toHaveCount(0);
+  expect((await request.get(`/api/projects/${briefOnly.id}`)).status()).toBe(404);
+});
+
 test("brief → storyboard → shared profile → editing → mock video → review → export", async ({
   page,
 }) => {

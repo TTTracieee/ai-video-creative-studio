@@ -56,6 +56,93 @@ describe("storyboard contract", () => {
     expect(() => parseStoryboard({ scenes }, sampleBrief)).toThrow("total duration");
   });
 });
+describe("project deletion", () => {
+  it("deletes an empty brief and rejects missing projects or invalid revisions", async () => {
+    const created = await service.createProject(db, { brief: sampleBrief }, context);
+    await expect(service.deleteProject(db, created.id, { revision: -1 })).rejects.toThrow();
+    expect(await service.deleteProject(db, created.id, { revision: 0 })).toEqual({
+      id: created.id,
+      deleted: true,
+    });
+    await expect(service.getProject(db, created.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service.deleteProject(db, created.id, { revision: 0 })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+    expect(await db.event.count({ where: { projectId: created.id } })).toBe(0);
+  });
+
+  it("cascades scenes, completed/failed attempts, reviews and events without touching another project", async () => {
+    const p = await project();
+    const keep = await project();
+    const [first] = await service.startTasks(
+      db,
+      p.id,
+      {
+        revision: p.revision,
+        sceneIds: [p.scenes[0].id],
+        scenario: "fail",
+        idempotencyKey: randomUUID(),
+      },
+      context,
+    );
+    await service.syncTask(db, first.id, context, new Date(first.createdAt.getTime() + 7000));
+    const [retry] = await service.retryTask(
+      db,
+      first.id,
+      { idempotencyKey: randomUUID() },
+      context,
+    );
+    await service.syncTask(db, retry.id, context, new Date(retry.createdAt.getTime() + 7000));
+    await service.reviewTask(
+      db,
+      retry.id,
+      { rating: 4, feedback: "Deletion test fixture" },
+      context,
+    );
+    expect(await db.event.count({ where: { projectId: p.id } })).toBeGreaterThan(0);
+    await service.deleteProject(db, p.id, { revision: p.revision });
+    expect(await db.project.findUnique({ where: { id: p.id } })).toBeNull();
+    expect(await db.scene.count({ where: { projectId: p.id } })).toBe(0);
+    expect(await db.generationTask.count({ where: { projectId: p.id } })).toBe(0);
+    expect(await db.review.count({ where: { taskId: { in: [first.id, retry.id] } } })).toBe(0);
+    expect(await db.event.count({ where: { projectId: p.id } })).toBe(0);
+    expect((await service.getProject(db, keep.id)).scenes).toHaveLength(3);
+    expect(await db.event.count({ where: { projectId: keep.id } })).toBeGreaterThan(0);
+  });
+
+  it("blocks both pending and processing tasks without deleting any records", async () => {
+    const p = await project();
+    const [task] = await service.startTasks(
+      db,
+      p.id,
+      { revision: p.revision, sceneIds: [p.scenes[0].id], idempotencyKey: randomUUID() },
+      context,
+    );
+    for (const status of ["pending", "processing"]) {
+      await db.generationTask.update({ where: { id: task.id }, data: { status } });
+      await expect(service.deleteProject(db, p.id, { revision: p.revision })).rejects.toMatchObject(
+        { code: "ACTIVE_TASKS", status: 409 },
+      );
+      expect((await service.getProject(db, p.id)).scenes).toHaveLength(3);
+      expect(await db.generationTask.count({ where: { projectId: p.id } })).toBe(1);
+    }
+  });
+
+  it("rejects stale confirmation after another edit", async () => {
+    const p = await project();
+    await service.updateProject(
+      db,
+      p.id,
+      { revision: p.revision, name: "Updated after confirmation opened" },
+      context,
+    );
+    await expect(service.deleteProject(db, p.id, { revision: p.revision })).rejects.toMatchObject({
+      code: "VERSION_CONFLICT",
+      status: 409,
+    });
+    expect((await service.getProject(db, p.id)).name).toBe("Updated after confirmation opened");
+  });
+});
 describe("persistent workflow", () => {
   it("saves edits, preserves IDs/order, regenerates and rejects stale saves", async () => {
     const p = await project();

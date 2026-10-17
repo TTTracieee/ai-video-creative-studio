@@ -64,6 +64,8 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
       data = await service.getProject(db, id);
     else if (root === "projects" && id && !action && method === "PATCH")
       data = await service.updateProject(db, id, body, context);
+    else if (root === "projects" && id && !action && method === "DELETE")
+      data = await service.deleteProject(db, id, body);
     else if (root === "projects" && action === "storyboard" && method === "POST")
       data = await service.generateBoard(db, id, body, context);
     else if (root === "projects" && action === "storyboard" && method === "PUT")
@@ -128,4 +130,4 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
     );
   }
 }
-export { handle as GET, handle as POST, handle as PUT, handle as PATCH };
+export { handle as GET, handle as POST, handle as PUT, handle as PATCH, handle as DELETE };

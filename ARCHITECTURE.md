@@ -30,6 +30,8 @@ flowchart LR
 
 SQLite 文件被忽略，不提交到 Git。迁移脚本先确保文件和父目录存在，再运行 Prisma migrate deploy；已有文件不截断。测试使用临时数据库或独立 e2e.db。
 
+项目整体删除使用现有外键 Cascade，在事务中检查 revision、Pending/Processing 任务，再按相同条件执行删除，清理 Scene、GenerationTask、Review 和 Event。单独删除 Scene 仍为 SetNull，不删除历史尝试。项目删除不请求外部服务取消任务或删除媒体；项目事件删除后 Analytics 不再统计该项目。确认框展示关联数量、不可恢复说明和费用边界，可只同步活动任务状态后再删除。
+
 ## 公共接口
 
 接口返回 `{ data }` 或 `{ error: { code, message } }`。业务 API 不缓存响应。Zod 错误返回 422，版本冲突 409，不存在 404，未登录 401，跨域变更 403。
@@ -38,6 +40,7 @@ SQLite 文件被忽略，不提交到 Git。迁移脚本先确保文件和父目
 | ------------------------------------------------- | -------------------------------------------------------------------- |
 | GET/POST /api/projects                            | 列表 / 创建 Brief                                                    |
 | GET/PATCH /api/projects/:id                       | 项目恢复 / 修改 Brief、名称、Profile                                 |
+| DELETE /api/projects/:id                          | JSON 请求体传 revision；永久删除项目及关联记录，活动任务返回 409     |
 | POST/PUT /api/projects/:id/storyboard             | 生成 / 保存完整有序分镜草稿                                          |
 | POST /api/projects/:id/scenes/:sceneId/regenerate | 重写单镜头，保持时长                                                 |
 | POST /api/projects/:id/tasks                      | 提交选定镜头；revision、sceneIds、UUID idempotencyKey、Mock scenario |

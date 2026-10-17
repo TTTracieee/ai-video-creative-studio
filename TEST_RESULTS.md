@@ -4,18 +4,18 @@
 
 ## 最终执行结果
 
-| 实际执行的命令                | 结果                   | 覆盖与限制                                                              |
-| ----------------------------- | ---------------------- | ----------------------------------------------------------------------- |
-| `npm run db:migrate`          | 通过                   | 创建 SQLite 并应用初始迁移；重复执行可用                                |
-| `npm run typecheck`           | 通过                   | Next 路由类型及严格 TypeScript 检查                                     |
-| `npm test`                    | 7 文件、51 项通过      | 业务、持久化、模拟 Provider 协议、指标、认证                            |
-| `npm run lint`                | 0 errors / 0 warnings  | 最终源码及测试脚本                                                      |
-| `npm run build`               | 通过                   | Webpack 生产编译、类型检查及 standalone 输出                            |
-| `npm run test:e2e`            | 4 场景通过，约 37.0 秒 | 包含演示视频实际播放、失败重试、指标、手机宽度、万相预检查和缺 Key 禁用 |
-| `npm run test:production`     | 通过                   | 独立临时数据库，访问保护、登录、Cookie、跨域与生产进程重启恢复          |
-| `npm audit --omit=dev --json` | 0 项已知漏洞           | 只针对生产依赖，不代表绝对安全                                          |
-| `ffprobe` 检查三个 Mock MP4   | 通过                   | H.264、均为 3 秒；360×640、640×360、480×480                             |
-| `git check-ignore`            | 通过                   | .env、日常/测试数据库、node_modules、.next 均被忽略                     |
+| 实际执行的命令                | 结果                   | 覆盖与限制                                                       |
+| ----------------------------- | ---------------------- | ---------------------------------------------------------------- |
+| `npm run db:migrate`          | 通过                   | 创建 SQLite 并应用初始迁移；重复执行可用                         |
+| `npm run typecheck`           | 通过                   | Next 路由类型及严格 TypeScript 检查                              |
+| `npm test`                    | 7 文件、55 项通过      | 业务、持久化、模拟 Provider 协议、指标、认证                     |
+| `npm run lint`                | 0 errors / 0 warnings  | 最终源码及测试脚本                                               |
+| `npm run build`               | 通过                   | Webpack 生产编译、类型检查及 standalone 输出                     |
+| `npm run test:e2e`            | 5 场景通过，约 47.5 秒 | 包含项目删除、演示视频播放、失败重试、指标、手机宽度及万相预检查 |
+| `npm run test:production`     | 通过                   | 独立临时数据库，访问保护、登录、Cookie、跨域与生产进程重启恢复   |
+| `npm audit --omit=dev --json` | 0 项已知漏洞           | 只针对生产依赖，不代表绝对安全                                   |
+| `ffprobe` 检查三个 Mock MP4   | 通过                   | H.264、均为 3 秒；360×640、640×360、480×480                      |
+| `git check-ignore`            | 通过                   | .env、日常/测试数据库、node_modules、.next 均被忽略              |
 
 阶段门槛：先通过 6 项业务测试及 2 条核心 E2E，再添加真实 Adapter、Analytics 和权限。最终数量见上表，没有把编译成功当作功能测试通过。
 
@@ -76,3 +76,9 @@
 业务和协议测试位于 `tests/*.test.ts`；浏览器流程位于 `tests/e2e/workflow.spec.ts`；生产重启验证位于 `scripts/smoke-production.mjs`。截图为 `docs/images/storyboard.png`、`review.png`、`mobile.png`。
 
 截图来自独立 E2E 数据库中的虚构品牌记录，不是真实用户研究。合成凭证仅保存在内存，没有输出到截图或日志。
+
+## 项目删除增量（2026-10-17）
+
+新增 4 项服务测试：空项目删除与参数校验、分镜/已完成和失败任务/Review/事件级联清理、Pending/Processing 阻止删除、版本冲突保护及其他项目保留。新增 1 条浏览器场景：详情页和项目卡片删除、取消保留、活动任务阻止、跨域 DELETE 拒绝、关联任务消失及刷新后不可恢复。全套测试为 55 项与 5 条 E2E，均通过；未删除日常数据库中的任何项目，也未调用付费 API。
+
+生产冒烟已补充未登录 DELETE 返回 401 的断言并实际通过；登录、Cookie、跨域保护和进程重启恢复也再次通过。项目删除不需要数据库迁移，沿用现有级联外键。
