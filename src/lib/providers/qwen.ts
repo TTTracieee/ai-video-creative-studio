@@ -2,13 +2,30 @@ import { z, ZodError } from "zod";
 import {
   AppError,
   boardSchema,
+  composePrompt,
   parseStoryboard,
   sceneSchema,
   type Brief,
   type Profile,
   type SceneContent,
 } from "../domain";
-import type { StoryboardProvider } from "./types";
+import type { StoryboardLimits, StoryboardProvider } from "./types";
+
+function boundedSceneSchema(profile: Profile, limits?: StoryboardLimits) {
+  if (!limits) return sceneSchema;
+  const overhead = composePrompt({ prompt: "", consistencyNotes: "" }, profile).length;
+  const budget = Math.min(2000, limits.maxPromptLength - overhead - 40);
+  if (budget < 80)
+    throw new AppError(
+      "PROFILE_TOO_LONG",
+      "Shorten the shared visual profile before generating: this video provider leaves too little room for a scene prompt.",
+      422,
+    );
+  return sceneSchema.extend({
+    prompt: sceneSchema.shape.prompt.max(budget),
+    consistencyNotes: sceneSchema.shape.consistencyNotes.max(40),
+  });
+}
 
 const envelopeSchema = z.object({
   choices: z
@@ -166,21 +183,31 @@ export class QwenStoryboardProvider implements StoryboardProvider {
     throw new AppError("LLM_VALIDATION_FAILED", "Storyboard validation failed.", 422);
   }
 
-  async generate(brief: Brief, profile: Profile) {
+  async generate(brief: Brief, profile: Profile, limits?: StoryboardLimits) {
     const count = brief.duration === 15 ? 3 : 5;
+    const schema = boardSchema.extend({
+      scenes: z.array(boundedSceneSchema(profile, limits)).min(3).max(5),
+    });
     return this.validated(
-      boardSchema,
+      schema,
       `Create exactly ${count} coherent scenes, each ${brief.duration / count} whole seconds, totaling ${brief.duration} seconds. Include a visual opening, product narrative and closing brand moment.\nBrief: ${JSON.stringify(brief)}\nShared profile: ${JSON.stringify(profile)}`,
-      (text) => parseStoryboard(text, brief),
+      (text) => parseStoryboard(schema.parse(JSON.parse(text)), brief),
     );
   }
 
-  async regenerateScene(brief: Brief, profile: Profile, scene: SceneContent, position: number) {
+  async regenerateScene(
+    brief: Brief,
+    profile: Profile,
+    scene: SceneContent,
+    position: number,
+    limits?: StoryboardLimits,
+  ) {
+    const schema = boundedSceneSchema(profile, limits);
     return this.validated(
-      sceneSchema,
+      schema,
       `Rewrite scene ${position + 1}. Preserve its duration of ${scene.duration} seconds and narrative role, but offer an alternate framing.\nBrief: ${JSON.stringify(brief)}\nShared profile: ${JSON.stringify(profile)}\nCurrent scene: ${JSON.stringify(scene)}`,
       (text) => {
-        const result = sceneSchema.parse(JSON.parse(text));
+        const result = schema.parse(JSON.parse(text));
         if (result.duration !== scene.duration)
           throw new AppError("INVALID_DURATION", "Scene duration changed.", 422);
         return result;

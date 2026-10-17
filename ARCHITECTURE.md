@@ -16,6 +16,7 @@ flowchart LR
   Service --> Video[VideoProvider]
   Video --> Mock[持久化时间驱动 Mock]
   Video --> Bach[旧版 BACH v1 / 待实际验证]
+  Video --> Wan[百炼万相 2.2 / 2.6 异步任务]
   DB --> Analytics[来源与模式隔离的指标]
 ```
 
@@ -59,11 +60,15 @@ Profile 的四个字段是共享文本说明。最终 Prompt = 镜头 Prompt + �
 
 ## 视频 Provider 与状态
 
+真实万相通过 `wan2.2` / `wan2.6` 固定模型与分辨率，避免修改默认配置后把历史重试改成另一收费规格。前者为 wan2.2-t2v-plus / 480P / 5 秒 / Prompt 800 字符，后者为 wan2.6-t2v / 720P / 2–15 秒 / Prompt 1,500 字符。同一百炼 Key 和 Base URL 复用；提交请求使用 Bearer、X-DashScope-Async=enable 和 `/api/v1/services/aigc/video-generation/video-synthesis`，查询 `/api/v1/tasks/:id`，约 15 秒轮询。Prompt 扩写关闭，始终传入保存的最终 Prompt；Qwen 根据共享档案占用和视频能力预留字数，用户输入不截断。
+
+万相 Pending/Running 映射为 pending/processing，Succeeded 为 completed，Failed/Canceled/Unknown 为 failed。HTTP 5xx/408、网络失败或无可确认任务 ID 的提交响应标为 SUBMISSION_UNKNOWN，不重发；查询错误保留原任务。时间采用本地观察到开始/终态的时刻，耗时包含轮询延迟，不假装具有服务商精确计时。返回的 HTTPS 视频 URL 约 24 小时有效，本版不下载或永久归档媒体。配置接口仅返回缺失环境变量的名称，缺少配置时工作台明确提示且禁用生成。
+
 VideoProvider 暴露 capabilities / submit / getStatus。提交前检查时长、整数要求、比例和组合 Prompt 长度。Mock 和旧版 BACH v1 以 1–8 秒为范围；不静默裁切。
 
 Mock：0–1.5 秒 Pending，1.5–6 秒 Processing，6 秒后按保存的 scenario 成功或失败。终态时间来自预定时间而非最后一次查询时间。固定演示视频带水印，时长不等于规划时长。每次重试是新任务，Mock 重试默认成功。
 
-Live：只实现旧版 `/videos/text2video` 和对应查询路径，不混用当前 Pro 的 `/video/v2`。鉴权依据官方 AK/SK → HS256 JWT → Bearer，服务端签名。提交超时/不明响应不自动重发；重试前提示可能重复计费。没有已确认 ID 的中断提交在 60 秒后转为状态不明的失败记录。查询错误保留任务，状态不从 Processing 回退 Pending。
+BACH Live：只实现旧版 `/videos/text2video` 和对应查询路径，不混用当前 Pro 的 `/video/v2`。鉴权依据官方 AK/SK → HS256 JWT → Bearer，服务端签名。提交超时/不明响应不自动重发；重试前提示可能重复计费。所有 Provider 没有已确认 ID 的中断提交在 60 秒后转为状态不明的失败记录。查询错误保留任务，状态不从 Processing 回退 Pending。
 
 打开工作台或 Tasks 时轮询；关闭页面不进行本地后台查询，重新打开后补查。真实 Provider 的远端生成独立执行。Analytics 的未同步终态可能暂时仍显示处理中；页面明确说明这一限制。
 

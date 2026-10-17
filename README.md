@@ -30,7 +30,7 @@ npm run dev
 - 四字段 Visual Consistency Profile 自动引用，最终 Prompt 可检查，任务保留不可变输入快照。
 - 异步状态、失败重试、刷新恢复、评分反馈、历史记录与完整项目导出。
 - 三项主要指标及基础失败/重试/耗时；终态成功率、来源及模式分离。
-- 百炼 Qwen Adapter、OpenAI Structured Outputs Adapter、旧版 BACH v1 Adapter、服务端凭证与密码保护。
+- 百炼 Qwen + 万相 2.2/2.6 Adapter、OpenAI Structured Outputs Adapter、旧版 BACH v1 Adapter、服务端凭证与密码保护。
 - 产品研究假设、决策、测试方案和英文案例。
 
 **未验证：** 真实付费 API 调用、旧版 BACH 线上可用性、Docker 镜像运行及 Railway 上线、真实用户研究。没有真实用户增长或生成质量结论。实际运行过的检查以 [TEST_RESULTS.md](TEST_RESULTS.md) 为准。
@@ -47,7 +47,7 @@ npm run dev
 | DASHSCOPE_BASE_URL                | 选择 `qwen` 时必填；从控制台复制对应业务空间和地域的 `compatible-mode/v1` Base URL     |
 | DASHSCOPE_MODEL                   | 默认 `qwen-flash`；需支持非思考模式 JSON Object 输出                                   |
 | OPENAI_API_KEY / OPENAI_MODEL     | 仅选择 `openai` 时必填，模型需支持 Structured Outputs                                  |
-| VIDEO_PROVIDER                    | `mock`（默认）或 `bach-v1`                                                             |
+| VIDEO_PROVIDER                    | `mock`（默认）、`wan2.2`（480P/5秒）、`wan2.6`（720P/2–15秒）或 `bach-v1`              |
 | BACH_ACCESS_KEY / BACH_SECRET_KEY | 旧版 BACH 鉴权；仅服务端使用                                                           |
 | APP_PASSWORD / SESSION_SECRET     | 私密演示密码 12+ 字符、签名密钥 32+ 字符                                               |
 
@@ -57,27 +57,29 @@ BACH 只实现历史 `bach-1.0` v1 Text-to-Video，单镜头 1–8 秒。当前�
 
 ### 无需美国银行卡的低成本接入
 
-推荐本地组合：百炼 Qwen 分镜 + Mock 视频。阿里云国内站支持支付宝、银联及网银充值，需自行完成账号和平台要求的实名认证；无需 OpenAI 账号。[官方充值说明](https://help.aliyun.com/zh/document_detail/324650.html)
+真实完整链路：百炼 Qwen 分镜 + 万相生成实际镜头 + 播放和 Review。Mock 视频只是仓库自带演示 MP4，不根据 Prompt 生成内容。阿里云国内站支持支付宝、银联及网银充值，无需 OpenAI 账号。[官方充值说明](https://help.aliyun.com/zh/document_detail/324650.html)
 
-1. 在[阿里云百炼](https://www.aliyun.com/product/bailian)开通模型服务，在对应地域/业务空间创建 API Key，并复制其 OpenAI 兼容接口 Base URL。兼容是请求协议，调用及计费均在阿里云。
-2. 只修改项目根目录已有 `.env` 中的以下变量，保留 `DATABASE_URL` 等其他配置。把 `WORKSPACE_ID` 换成自己的业务空间 ID，或直接使用控制台给出的完整 Base URL；Key、地域及业务空间须一致。[官方调用步骤](https://help.aliyun.com/en/model-studio/first-api-call-to-qwen)
+1. 在[阿里云百炼](https://www.aliyun.com/product/bailian)开通北京地域模型服务，在默认业务空间创建可调用 Qwen 和万相的 API Key。一个 Key 用于两个 Adapter，调用及计费均在阿里云。
+2. 只修改项目根目录已有 `.env` 中的以下变量，保留 `DATABASE_URL` 等其他配置。下方为北京地域公共 Base URL，也可以使用控制台给出的对应专属域名；Key、地域及业务空间须一致。[官方调用步骤](https://help.aliyun.com/en/model-studio/first-api-call-to-qwen)
 
    ```dotenv
    STORYBOARD_PROVIDER="qwen"
    DASHSCOPE_API_KEY="替换为你的百炼APIKey"
-   DASHSCOPE_BASE_URL="https://WORKSPACE_ID.cn-beijing.maas.aliyuncs.com/compatible-mode/v1"
+   DASHSCOPE_BASE_URL="https://dashscope.aliyuncs.com/compatible-mode/v1"
    DASHSCOPE_MODEL="qwen-flash"
-   VIDEO_PROVIDER="mock"
+   VIDEO_PROVIDER="wan2.2"
    ```
 
-3. 停止原开发服务，执行 `npm run dev`，打开 `http://127.0.0.1:3000` 创建示例项目并点击 Generate Storyboard。Storyboard 应显示 Live，视频仍显示 Mock。没有 Key 时继续保持双 Mock，不会自动调用收费接口。
-4. 优先检查账号可用的免费额度，再按需小额充值；日常视频调试使用 Mock。分镜 JSON/字段/时长错误最多追加一次修复请求，可能额外计费。鉴权失败、限流、截断、拒绝和超时不会自动重试，也不会悄悄回退 Mock。
+3. 停止原开发服务，执行 `npm run dev`，打开 `http://127.0.0.1:3000`。缺少配置时页面显示 API setup required 并禁用生成；Live 标签只表示真实 Provider 被选中，不代表已成功连接。
+4. 创建 15 秒示例，Generate storyboard 得到三个 5 秒镜头，再点第一个 Generate clip，等待真实万相任务完成、播放新视频并保存 Review。第一次先生成一个镜头，确认成功后再生成其他镜头。优先检查免费额度，再按需小额充值。
 
 2026-10-17 核对的北京地域 `qwen-flash` 短上下文价格：输入 0.15 元/百万 Token、输出 1.5 元/百万 Token。假设单次输入 2,000、输出 3,000 Token，则约 0.0048 元/次，100 次约 0.48 元；这是按公开单价计算的估算，不是实测用量，不含重试。不同模型、地域及未来价格可能不同。[官方价格](https://help.aliyun.com/zh/model-studio/model-pricing)
 
 Qwen Flash 使用非思考模式 JSON Object，再由服务端校验 Schema、镜头数量和时长；JSON Object 本身不保证字段结构。请求上限为 8,192 个输出 Token；Base URL 仅接受官方 HTTPS 地址，不跟随重定向。[官方结构化输出说明](https://help.aliyun.com/en/model-studio/qwen-structured-output)
 
-真实视频可后续评估万相 `wan2.2-t2v-plus`：北京地域 480P 为 0.14 元/秒，三个 5 秒镜头按一次成功输出估算共 2.10 元；不代表合成完整视频，也不包含重新生成费用。本项目尚未实现万相 Adapter，不能仅修改 `VIDEO_PROVIDER` 就调用它。当前 Qwen 适配器只有模拟协议验证，尚未执行真实付费调用。
+万相 2.2 已实现：480P、固定 5 秒、无声，约 0.70 元/镜头，三个镜头约 2.10 元；万相 2.6 已实现：720P、2–15 秒整数，北京参考价 0.60 元/秒。30 秒默认五个 6 秒镜头需要显式选择 `wan2.6`，或手动编辑为六个 5 秒镜头后使用 `wan2.2`。不静默改时长或切换收费模型。
+
+完整配置、成本、首次真实验收和错误排查见 [REAL_API_SETUP.md](REAL_API_SETUP.md)。万相结果链接 24 小时有效，本版不永久存储媒体，需从 Open clip 保存。当前协议和持久化链路测试使用模拟响应，真实付费验收仍需自己的 Key 和实际生成结果。
 
 ## 验证命令
 

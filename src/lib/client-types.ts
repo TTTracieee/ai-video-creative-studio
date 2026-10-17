@@ -38,6 +38,9 @@ export interface ConfigView {
   storyboardMode: string;
   videoMode: string;
   videoProvider: string;
-  capabilities: { minDuration: number; maxDuration: number };
+  videoDescription?: string;
+  pollIntervalMs?: number;
+  setupRequired?: string[];
+  capabilities: { minDuration: number; maxDuration: number; maxPromptLength?: number };
   passwordRequired?: boolean;
 }

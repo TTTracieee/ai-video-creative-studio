@@ -33,15 +33,25 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
     if (root === "health" && method === "GET") {
       await db.$queryRaw`SELECT 1`;
       data = { ok: true };
-    } else if (root === "config" && method === "GET")
+    } else if (root === "config" && method === "GET") {
+      const video = videoProvider();
+      const required: string[] = [];
+      if (process.env.STORYBOARD_PROVIDER === "qwen" || video.name.startsWith("wan"))
+        required.push("DASHSCOPE_API_KEY", "DASHSCOPE_BASE_URL");
+      if (process.env.STORYBOARD_PROVIDER === "openai")
+        required.push("OPENAI_API_KEY", "OPENAI_MODEL");
+      if (video.name === "bach-v1") required.push("BACH_ACCESS_KEY", "BACH_SECRET_KEY");
       data = {
         storyboardMode: storyboardProvider().mode,
-        videoMode: videoProvider().mode,
-        videoProvider: videoProvider().name,
-        capabilities: videoProvider().capabilities,
+        videoMode: video.mode,
+        videoProvider: video.name,
+        videoDescription: video.description,
+        pollIntervalMs: video.pollIntervalMs,
+        capabilities: video.capabilities,
+        setupRequired: [...new Set(required)].filter((name) => !process.env[name]?.trim()),
         passwordRequired: passwordRequired(),
       };
-    else if (root === "analytics" && method === "GET")
+    } else if (root === "analytics" && method === "GET")
       data = await getAnalytics(db, Object.fromEntries(request.nextUrl.searchParams));
     else if (root === "projects" && !id && method === "GET")
       data = await db.project.findMany({

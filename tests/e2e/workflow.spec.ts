@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { sampleBrief } from "../../src/lib/domain";
 
 test("brief → storyboard → shared profile → editing → mock video → review → export", async ({
   page,
@@ -93,4 +94,67 @@ test("failed generation is preserved and retry succeeds", async ({ page }) => {
   await page.getByRole("button", { name: "Retry generation", exact: true }).click();
   await expect(page.getByTestId("task-completed")).toBeVisible({ timeout: 20000 });
   await expect(page.getByTestId("task-failed")).toBeVisible();
+});
+
+test("simulated Wan config shows limits and blocks incompatible clips before submission", async ({
+  page,
+  request,
+}) => {
+  let model = "wan2.2";
+  let configured = true;
+  await page.route("**/api/config", async (route) => {
+    const result = await route.fetch();
+    const payload = await result.json();
+    payload.data = {
+      ...payload.data,
+      videoMode: "live",
+      setupRequired: configured ? [] : ["DASHSCOPE_API_KEY"],
+      videoProvider: model,
+      videoDescription:
+        model === "wan2.2"
+          ? "Wan 2.2 · 480p silent clips · exactly 5s · 800 prompt characters."
+          : "Wan 2.6 · 720p clips · 2–15s · 1,500 prompt characters.",
+      capabilities: {
+        minDuration: model === "wan2.2" ? 5 : 2,
+        maxDuration: model === "wan2.2" ? 5 : 15,
+        maxPromptLength: model === "wan2.2" ? 800 : 1500,
+      },
+    };
+    await route.fulfill({ response: result, json: payload });
+  });
+  const result = await request.post("/api/projects", {
+    data: { brief: { ...sampleBrief, duration: 30 }, origin: "demo" },
+  });
+  expect(result.ok()).toBe(true);
+  const { data } = await result.json();
+  await page.goto(`/projects/${data.id}`);
+  await page.getByRole("button", { name: "Generate storyboard", exact: true }).click();
+  await expect(page.getByText("30 / 30s planned")).toBeVisible();
+  await expect(page.getByText("wan2.2 requires 5s per clip.", { exact: false })).toHaveCount(5);
+  await expect(
+    page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Generate all clips", exact: true }),
+  ).toBeDisabled();
+  model = "wan2.6";
+  await page.reload();
+  await expect(page.getByText("Wan 2.6 · 720p clips", { exact: false })).toBeVisible();
+  await expect(
+    page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }),
+  ).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Generate all clips", exact: true })).toBeEnabled();
+  await page.getByLabel("Character Identity", { exact: true }).fill("x".repeat(1200));
+  await page.getByRole("button", { name: /Save profile/ }).click();
+  await expect(page.getByRole("status")).toContainText("Visual profile saved");
+  await expect(page.getByText("Shorten the scene prompt", { exact: false })).toHaveCount(5);
+  await expect(
+    page.getByRole("button", { name: "Generate all clips", exact: true }),
+  ).toBeDisabled();
+  configured = false;
+  await page.reload();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "API setup required: DASHSCOPE_API_KEY" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Regenerate board", exact: true })).toBeDisabled();
 });

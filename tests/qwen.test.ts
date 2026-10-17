@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { QwenStoryboardProvider } from "../src/lib/providers/qwen";
 import { MockStoryboardProvider } from "../src/lib/providers/mock";
 import { storyboardProvider } from "../src/lib/providers";
-import { defaultProfile, sampleBrief } from "../src/lib/domain";
+import { composePrompt, defaultProfile, sampleBrief } from "../src/lib/domain";
 
 afterEach(() => vi.unstubAllEnvs());
 const profile = defaultProfile(sampleBrief);
@@ -19,6 +19,39 @@ function configured() {
 }
 
 describe("Qwen Chat Completions adapter (simulated transport, no paid API calls)", () => {
+  it("reserves room for shared instructions within the video provider prompt limit", async () => {
+    configured();
+    const original = await new MockStoryboardProvider().generate(sampleBrief, profile);
+    const scenes = original.map((s) => ({
+      ...s,
+      prompt: "A coffee ritual in warm light, slow push-in.",
+      consistencyNotes: "",
+    }));
+    const transport = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response(output(JSON.stringify({ scenes }))));
+    const result = await new QwenStoryboardProvider(transport).generate(sampleBrief, profile, {
+      maxPromptLength: 800,
+    });
+    expect(result.every((s) => composePrompt(s, profile).length <= 800)).toBe(true);
+    const request = JSON.parse(transport.mock.calls[0][1]!.body as string);
+    const schema = JSON.parse(request.messages[0].content.split("extra text: ")[1]);
+    expect(schema.properties.scenes.items.properties.prompt.maxLength).toBeLessThan(800);
+    expect(schema.properties.scenes.items.properties.consistencyNotes.maxLength).toBe(40);
+  });
+
+  it("rejects an overlong shared profile before incurring an LLM call", async () => {
+    configured();
+    const transport = vi.fn<typeof fetch>();
+    await expect(
+      new QwenStoryboardProvider(transport).generate(
+        sampleBrief,
+        { ...profile, characterIdentity: "x".repeat(1200) },
+        { maxPromptLength: 800 },
+      ),
+    ).rejects.toMatchObject({ code: "PROFILE_TOO_LONG" });
+    expect(transport).not.toHaveBeenCalled();
+  });
   it.each([15, 30] as const)(
     "plans %i seconds with JSON mode and shared instructions",
     async (duration) => {

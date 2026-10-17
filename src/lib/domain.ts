@@ -67,7 +67,10 @@ export function defaultProfile(brief: Brief): Profile {
     visualStyle: `${brief.visualStyle}; warm amber highlights, natural textures, soft morning light.`,
   };
 }
-export function composePrompt(scene: SceneContent, profile: Profile): string {
+export function composePrompt(
+  scene: Pick<SceneContent, "prompt" | "consistencyNotes">,
+  profile: Profile,
+): string {
   return `${scene.prompt}\n\nShared visual consistency instructions (guidance, not a guarantee):\nCharacter identity: ${profile.characterIdentity || "Not specified"}\nProduct appearance: ${profile.productAppearance || "Not specified"}\nBrand elements: ${profile.brandElements || "Not specified"}\nVisual style: ${profile.visualStyle || "Not specified"}\nScene consistency notes: ${scene.consistencyNotes || "None"}`;
 }
 export function parseStoryboard(value: unknown, brief: Brief): SceneContent[] {

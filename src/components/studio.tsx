@@ -214,13 +214,16 @@ export default function Studio() {
         running = false;
       }
     }
-    const timer = setInterval(() => void poll(), config.videoMode === "mock" ? 2000 : 5000);
+    const timer = setInterval(
+      () => void poll(),
+      config.pollIntervalMs ?? (config.videoMode === "mock" ? 2000 : 5000),
+    );
     void poll();
     return () => {
       stopped = true;
       clearInterval(timer);
     };
-  }, [pendingIds, busy, projectId, reload, config.videoMode]);
+  }, [pendingIds, busy, projectId, reload, config.videoMode, config.pollIntervalMs]);
   const dirtyScenes = !!project && JSON.stringify(scenes) !== JSON.stringify(project.scenes);
   const dirtyProfile = !!project && JSON.stringify(profile) !== JSON.stringify(project.profile);
   const dirtyBrief =
@@ -262,6 +265,19 @@ export default function Studio() {
     return result.data;
   }
   const total = scenes.reduce((n, s) => n + s.duration, 0);
+  const setupMissing = !!config.setupRequired?.length;
+  function sceneIssue(scene: SceneRecord) {
+    const { minDuration, maxDuration, maxPromptLength = 10000 } = config.capabilities;
+    if (
+      !Number.isInteger(scene.duration) ||
+      scene.duration < minDuration ||
+      scene.duration > maxDuration
+    )
+      return `${config.videoProvider} requires ${minDuration === maxDuration ? minDuration : `${minDuration}–${maxDuration}`}s per clip. Edit the duration or select another provider.`;
+    if (composePrompt(scene, profile).length > maxPromptLength)
+      return `Shorten the scene prompt, consistency notes or shared profile to fit ${maxPromptLength} characters.`;
+    return "";
+  }
   async function generateClips(ids: string[]) {
     ensureSaved();
     await api(`projects/${projectId}/tasks`, "POST", {
@@ -389,6 +405,13 @@ export default function Studio() {
           </div>
         </header>
         <main className="main-content">
+          {setupMissing && (
+            <div role="alert" className="message warning">
+              API setup required: {config.setupRequired!.join(", ")}. Add these server environment
+              variables and restart. Live mode means a provider is selected; it does not confirm a
+              successful connection. Generation is disabled until configured.
+            </div>
+          )}
           {error && (
             <div role="alert" className="message error">
               <span>{error}</span>
@@ -743,7 +766,7 @@ export default function Studio() {
                           )}
                           <button
                             className="btn primary"
-                            disabled={busy || dirty}
+                            disabled={busy || dirty || setupMissing}
                             onClick={() =>
                               run(async () => {
                                 ensureSaved();
@@ -849,6 +872,13 @@ export default function Studio() {
                                           }
                                         />
                                       </label>
+                                      <p className="field-help">
+                                        Final prompt: {composePrompt(scene, profile).length} /{" "}
+                                        {config.capabilities.maxPromptLength ?? 10000} characters
+                                      </p>
+                                      {sceneIssue(scene) && (
+                                        <p className="field-error">{sceneIssue(scene)}</p>
+                                      )}
                                       <details>
                                         <summary>Scene direction & final prompt</summary>
                                         {sceneFields
@@ -905,7 +935,7 @@ export default function Studio() {
                                         </button>
                                         <button
                                           className="text-btn"
-                                          disabled={busy || dirty}
+                                          disabled={busy || dirty || setupMissing}
                                           onClick={() =>
                                             run(async () => {
                                               ensureSaved();
@@ -924,7 +954,9 @@ export default function Studio() {
                                       </div>
                                       <button
                                         className="btn full"
-                                        disabled={busy || dirty}
+                                        disabled={
+                                          busy || dirty || setupMissing || !!sceneIssue(scene)
+                                        }
                                         onClick={() => run(() => generateClips([scene.id]))}
                                       >
                                         <CirclePlay size={15} />
@@ -1028,6 +1060,7 @@ export default function Studio() {
                             {scenes.length} scenes · {project.brief.duration}s plan
                           </strong>
                           <span>Individual clips only. No automatic stitching.</span>
+                          {config.videoDescription && <span>{config.videoDescription}</span>}
                         </div>
                         <div className="button-row">
                           <button className="text-btn" onClick={() => setShowProfile(!showProfile)}>
@@ -1046,7 +1079,12 @@ export default function Studio() {
                           <button
                             className="btn primary"
                             disabled={
-                              busy || dirty || !scenes.length || total !== project.brief.duration
+                              busy ||
+                              setupMissing ||
+                              dirty ||
+                              !scenes.length ||
+                              total !== project.brief.duration ||
+                              scenes.some((scene) => !!sceneIssue(scene))
                             }
                             onClick={() => run(() => generateClips(scenes.map((s) => s.id)))}
                           >
@@ -1354,6 +1392,12 @@ function TaskCard({
             <p className="tiny muted">
               Fixed demo footage, not generated from your prompt. The footage duration is
               independent of the storyboard plan.
+            </p>
+          )}
+          {task.provider.startsWith("wan") && (
+            <p className="tiny muted">
+              Generated by Alibaba Cloud Wan from the saved prompt. The result link expires after 24
+              hours; save the clip from Open clip.
             </p>
           )}
           <a className="text-btn" href={task.resultUrl} target="_blank" rel="noreferrer">

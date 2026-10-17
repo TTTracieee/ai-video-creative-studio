@@ -2,13 +2,17 @@ import type { Brief, Mode, Profile, SceneContent, Snapshot, TaskStatus } from ".
 import { AppError } from "../domain";
 export interface StoryboardProvider {
   mode: Mode;
-  generate(brief: Brief, profile: Profile): Promise<SceneContent[]>;
+  generate(brief: Brief, profile: Profile, limits?: StoryboardLimits): Promise<SceneContent[]>;
   regenerateScene(
     brief: Brief,
     profile: Profile,
     scene: SceneContent,
     position: number,
+    limits?: StoryboardLimits,
   ): Promise<SceneContent>;
+}
+export interface StoryboardLimits {
+  maxPromptLength: number;
 }
 export interface Capabilities {
   minDuration: number;
@@ -36,6 +40,8 @@ export interface TaskUpdate {
 export interface VideoProvider {
   name: string;
   mode: Mode;
+  description?: string;
+  pollIntervalMs?: number;
   capabilities: Capabilities;
   submit(task: ProviderTask): Promise<{ providerTaskId: string }>;
   getStatus(task: ProviderTask, now?: Date): Promise<TaskUpdate>;

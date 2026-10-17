@@ -172,7 +172,7 @@ export async function generateBoard(
   if (p.revision !== revision)
     throw new AppError("VERSION_CONFLICT", "Reload before generating.", 409);
   const provider = storyboardProvider();
-  const scenes = await provider.generate(p.brief, p.profile);
+  const scenes = await provider.generate(p.brief, p.profile, videoProvider().capabilities);
   await replaceScenes(
     db,
     id,
@@ -212,7 +212,13 @@ export async function regenerateScene(
   if (p.revision !== revision)
     throw new AppError("VERSION_CONFLICT", "Reload before regenerating.", 409);
   const generated = sceneSchema.parse(
-    await storyboardProvider().regenerateScene(p.brief, p.profile, p.scenes[index], index),
+    await storyboardProvider().regenerateScene(
+      p.brief,
+      p.profile,
+      p.scenes[index],
+      index,
+      videoProvider().capabilities,
+    ),
   );
   if (generated.duration !== p.scenes[index].duration)
     throw new AppError("INVALID_DURATION", "Regenerated scene changed the duration.", 422);
