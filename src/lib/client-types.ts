@@ -1,4 +1,4 @@
-import type { Brief, Profile, SceneRecord, Snapshot, TaskStatus } from "./domain";
+import type { Brief, Profile, SceneRecord, Snapshot, TaskStatus, FirstCutSnapshot } from "./domain";
 export interface TaskView {
   id: string;
   projectId: string;
@@ -11,6 +11,7 @@ export interface TaskView {
   startedAt: string | null;
   completedAt: string | null;
   resultUrl: string | null;
+  previewUrl?: string | null;
   errorCode: string | null;
   errorMessage: string | null;
   retryOfId: string | null;
@@ -30,9 +31,23 @@ export interface ProjectView {
   briefUpdatedAt: string;
   createdAt: string;
   updatedAt: string;
-  scenes: SceneRecord[];
+  scenes: (SceneRecord & { selectedGenerationTaskId: string | null })[];
   tasks: TaskView[];
+  output: OutputView | null;
+  outputIsCurrent: boolean;
+  progress: { sceneCount: number; selectedCount: number; activeCount: number; label: string };
   _count?: { scenes: number; tasks: number };
+}
+export interface OutputView {
+  id: string;
+  status: string;
+  snapshot: FirstCutSnapshot;
+  mode: string;
+  duration: number | null;
+  mediaUrl: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 export interface ConfigView {
   storyboardMode: string;
@@ -43,4 +58,5 @@ export interface ConfigView {
   setupRequired?: string[];
   capabilities: { minDuration: number; maxDuration: number; maxPromptLength?: number };
   passwordRequired?: boolean;
+  developmentTools?: boolean;
 }

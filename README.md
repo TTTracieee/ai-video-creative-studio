@@ -1,58 +1,64 @@
 # AI Video Creative Studio · Frame
 
-一个面向营销创作流程的完整本地 Web MVP：**Creative Brief → Storyboard → Visual Consistency Profile → Scene Editing → Video Tasks → Review → Analytics / JSON Export**。
+一个本地优先的短视频项目工作台：**营销 Brief → Plan → Generate & Select → Preview & Export First Cut**。
 
-英文 UI，中文产品与技术文档。无 API Key 即可运行。默认分镜是明确标注的模板 Mock，视频是带水印的固定演示素材；不把它们称作真实模型生成，不自动拼接成片。
+英文 UI，中文产品与技术文档。输出是可审阅的初剪草稿，不承诺最终广告成片或跨镜头一致性。首页带有一个完整的 Morning Brew Example，使用已保存的三个真实 Wan 3.0 片段及约 15 秒合并视频；打开不调用模型。
 
-![Storyboard workspace with a sample brief and Mock mode](docs/images/storyboard.png)
-
-截图来自自动化测试中的虚构品牌样例，不是外部用户数据或真实模型效果。
+![First Cut workspace](docs/images/example.png)
 
 ## 快速启动
 
-要求 Node.js 22.20+、npm；macOS 或 Linux。SQLite 无需单独安装。FFmpeg 只在重新制作演示素材时需要，正常使用无需安装。
+要求 Node.js 22.20+、npm；macOS 或 Linux。SQLite 无需单独安装。合并新 First Cut 需要 FFmpeg 和 ffprobe（macOS 可执行 `brew install ffmpeg`）；预制 Example 的播放和下载不依赖 FFmpeg。Dockerfile 已包含 FFmpeg。
 
 ```bash
 cd /Users/qiyongxi/lively/ai-video-creative-studio
 cp .env.example .env
 npm ci
 npm run db:migrate
+npm run db:seed-example
 npm run dev
 ```
 
 打开 [http://127.0.0.1:3000](http://127.0.0.1:3000)。已有 `.env` 时保留它，不要用示例覆盖真实配置。项目与任务保存在 `prisma/studio.db`，刷新或重启不会清空。
 
-点击 **Try the coffee campaign → Generate storyboard**，编辑四项共享视觉说明并保存；修改 Scene 后点击 Save scenes，然后 Generate clip。约六秒后可预览演示视频并提交评分。Mock scenario 可选择失败，随后重试。15/30 秒是规划时长，默认 3/5 个镜头。
+首页打开 **Morning Brew / Example** 即可观看并导出预制 First Cut。点击 **Duplicate plan** 复制 Brief、Creative Direction 与分镜，生成结果不复制。创建自己的项目后：
+
+1. 在 **Plan** 生成并编辑分镜、保存共享 Creative Direction。
+2. 在 **Generate & Select** 生成镜头；首次成功自动选中，后续版本由用户明确选择。
+3. 全部镜头选中后，在 **Preview & Export** 点击 **Build first cut**，播放并 **Export MP4**。
+
+默认无 Key 运行采用模板和带水印测试视频，并保留简短来源说明；需要实际生成请配置下文的 Qwen + 万相。失败模拟仅在 `ENABLE_DEV_TOOLS=true` 的开发控制中出现。15/30 秒分别默认 3/5 个镜头，是规划目标；实际初剪时长来自源视频，不补帧、不裁剪以凑时长。
 
 ## 已实现与边界
 
-- Brief 校验、示例与保存；分镜字段编辑、增删、排序、单镜头重写和 JSON 导出。
-- 四字段 Visual Consistency Profile 自动引用，最终 Prompt 可检查，任务保留不可变输入快照。
-- 异步状态、失败重试、刷新恢复、评分反馈、历史记录与完整项目导出。
-- 项目卡片与详情页支持确认后永久删除项目，连同分镜、任务、Review 和事件一起清理；有 Pending/Processing 任务时阻止删除，确认框可查询任务状态。
-- 三项主要指标及基础失败/重试/耗时；终态成功率、来源及模式分离。
-- 百炼 Qwen + 万相 2.2/2.6 Adapter、OpenAI Structured Outputs Adapter、旧版 BACH v1 Adapter、服务端凭证与密码保护。
-- 产品研究假设、决策、测试方案和英文案例。
+- Brief、Creative Direction 和可编辑分镜合并在 Plan；共享说明只作用于未来生成。
+- Scene 内的版本选择、折叠历史、重试、可选评分和不可变 Prompt 快照。
+- 项目进度、First Cut 顺序拼接、选片快照、实际时长、MP4 下载及旧预览重建提示。
+- 已完成结果通过应用缓存到本地媒体目录；预制 Example 使用稳定仓库资源，无需模型请求。
+- Zod、版本检查、数据库持久化、幂等任务、访问保护；Tasks 与 Analytics 降为次级工具。
+- Qwen + 万相 3.0 真实三镜头 Example；其他 Provider 保留协议测试，验证范围见 [TEST_RESULTS.md](TEST_RESULTS.md)。
 
-**未验证：** 真实付费 API 调用、旧版 BACH 线上可用性、Docker 镜像运行及 Railway 上线、真实用户研究。没有真实用户增长或生成质量结论。实际运行过的检查以 [TEST_RESULTS.md](TEST_RESULTS.md) 为准。
+不提供时间线、转场、字幕、BGM 或配音编辑；原片声音直接拼接，声音和画面可能不连续。尚未验证 Railway 上线、Docker 镜像运行或真实用户研究。
 
-删除项目会移除其全部本地历史，Analytics 只统计剩余数据。删除不能撤销，不会取消服务商任务、退费或删除用户自行下载的视频；需要留档时先 Export project。单独删除 Scene 则仍保留历史生成尝试。
+删除项目级联删除本地分镜、任务、Review、事件、输出及该项目缓存；活动生成/合并期间阻止删除。删除不取消服务商任务或退费，也不删除用户已下载的文件。单独删除 Scene 保留历史尝试。仓库自带 Example 资源不因删除数据库项目而移除；仅在显式运行 `npm run db:seed-example` 时幂等导入，普通重启不会恢复已删除项目。
 
 ## Live 配置
 
 只编辑服务端 `.env` 或部署环境变量；不要把 Key 发到聊天、前端表单或 Git。更改配置后重启服务。
 
-| 变量                              | 用途                                                                                   |
-| --------------------------------- | -------------------------------------------------------------------------------------- |
-| DATABASE_URL                      | 默认 `file:./studio.db`，相对路径以 prisma 目录为基准；生产建议 `file:/data/studio.db` |
-| STORYBOARD_PROVIDER               | `mock`（默认）、`qwen` 或 `openai`                                                     |
-| DASHSCOPE_API_KEY                 | 选择 `qwen` 时必填；阿里云百炼 API Key，仅保存在服务端                                 |
-| DASHSCOPE_BASE_URL                | 选择 `qwen` 时必填；从控制台复制对应业务空间和地域的 `compatible-mode/v1` Base URL     |
-| DASHSCOPE_MODEL                   | 当前示例 `qwen3.8-flash`；需支持非思考模式 JSON Object；未设置时兼容回退 `qwen-flash` |
-| OPENAI_API_KEY / OPENAI_MODEL     | 仅选择 `openai` 时必填，模型需支持 Structured Outputs                                  |
-| VIDEO_PROVIDER                    | `mock`（默认）、`wan3.0`（480P/2–30秒）、`wan2.2`（480P/5秒）、`wan2.6`（720P/2–15秒）或 `bach-v1` |
-| BACH_ACCESS_KEY / BACH_SECRET_KEY | 旧版 BACH 鉴权；仅服务端使用                                                           |
-| APP_PASSWORD / SESSION_SECRET     | 私密演示密码 12+ 字符、签名密钥 32+ 字符                                               |
+| 变量                                    | 用途                                                                                               |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| DATABASE_URL                            | 默认 `file:./studio.db`，相对路径以 prisma 目录为基准；生产建议 `file:/data/studio.db`             |
+| STORYBOARD_PROVIDER                     | `mock`（默认）、`qwen` 或 `openai`                                                                 |
+| DASHSCOPE_API_KEY                       | 选择 `qwen` 时必填；阿里云百炼 API Key，仅保存在服务端                                             |
+| DASHSCOPE_BASE_URL                      | 选择 `qwen` 时必填；从控制台复制对应业务空间和地域的 `compatible-mode/v1` Base URL                 |
+| DASHSCOPE_MODEL                         | 当前示例 `qwen3.8-flash`；需支持非思考模式 JSON Object；未设置时兼容回退 `qwen-flash`              |
+| OPENAI_API_KEY / OPENAI_MODEL           | 仅选择 `openai` 时必填，模型需支持 Structured Outputs                                              |
+| VIDEO_PROVIDER                          | `mock`（默认）、`wan3.0`（480P/2–30秒）、`wan2.2`（480P/5秒）、`wan2.6`（720P/2–15秒）或 `bach-v1` |
+| BACH_ACCESS_KEY / BACH_SECRET_KEY       | 旧版 BACH 鉴权；仅服务端使用                                                                       |
+| MEDIA_ROOT / FFMPEG_PATH / FFPROBE_PATH | 本地媒体目录与 FFmpeg/ffprobe 可执行文件路径                                                       |
+| ENABLE_DEV_TOOLS / SEED_EXAMPLE         | 显示开发控制 / 是否启动时补齐 Example                                                              |
+| APP_PASSWORD / SESSION_SECRET           | 私密演示密码 12+ 字符、签名密钥 32+ 字符                                                           |
 
 OpenAI 使用 Responses API，输出再次校验，错误不静默回退 Mock。[官方 Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)。
 
@@ -60,7 +66,7 @@ BACH 只实现历史 `bach-1.0` v1 Text-to-Video，单镜头 1–8 秒。当前�
 
 ### 无需美国银行卡的低成本接入
 
-真实完整链路：百炼 Qwen 分镜 + 万相生成实际镜头 + 播放和 Review。Mock 视频只是仓库自带演示 MP4，不根据 Prompt 生成内容。阿里云国内站支持支付宝、银联及网银充值，无需 OpenAI 账号。[官方充值说明](https://help.aliyun.com/zh/document_detail/324650.html)
+真实完整链路：百炼 Qwen 分镜 + 万相镜头 + 版本选择 + 本地 First Cut 合并/导出。Mock 视频只是仓库自带演示 MP4，不根据 Prompt 生成内容。阿里云国内站支持支付宝、银联及网银充值，无需 OpenAI 账号。[官方充值说明](https://help.aliyun.com/zh/document_detail/324650.html)
 
 1. 在[阿里云百炼](https://www.aliyun.com/product/bailian)开通北京地域模型服务，在默认业务空间创建可调用 Qwen 和万相的 API Key。一个 Key 用于两个 Adapter，调用及计费均在阿里云。
 2. 只修改项目根目录已有 `.env` 中的以下变量，保留 `DATABASE_URL` 等其他配置。从[业务空间管理（北京）](https://bailian.console.aliyun.com/cn-beijing/settings/workspace)复制 API Host，将下方占位域名替换为真实地址。Wan 3.0 使用专属业务空间域名；Key、地域及业务空间须一致。[官方接入说明](https://help.aliyun.com/zh/model-studio/regions)
@@ -73,16 +79,16 @@ BACH 只实现历史 `bach-1.0` v1 Text-to-Video，单镜头 1–8 秒。当前�
    VIDEO_PROVIDER="wan3.0"
    ```
 
-3. 停止原开发服务，执行 `npm run dev`，打开 `http://127.0.0.1:3000`。缺少配置时页面显示 API setup required 并禁用生成；Live 标签只表示真实 Provider 被选中，不代表已成功连接。
-4. 创建 15 秒示例，Generate storyboard 得到三个 5 秒镜头，再点第一个 Generate clip，等待真实万相任务完成、播放新视频并保存 Review。第一次先生成一个镜头，确认成功后再生成其他镜头。优先检查免费额度，再按需小额充值。
+3. 停止原开发服务，执行 `npm run dev`，打开 `http://127.0.0.1:3000`。缺少配置时页面显示 API setup required 并禁用生成；配置缺失提示不代表已经验证账号权限。
+4. 创建 15 秒项目，在 Plan 生成三个 5 秒镜头，再在 Generate & Select 点击第一个 Generate scene，等待真实万相任务完成、播放新视频并保存 Review。第一次先生成一个镜头，确认成功后再生成其他镜头。优先检查免费额度，再按需小额充值。
 
 2026-10-17 核对的北京地域 `qwen3.8-flash` 价格：输入 0.8 元/百万 Token、输出 2.7 元/百万 Token；假设输入 2,000、输出 3,000 Token，约 0.0097 元/次。`wan3.0-video` / 480P 原价 0.30 元/秒，一个 5 秒镜头 1.50 元，三个镜头 4.50 元。官方列出的北京新人额度分别为 100 万 Token 和 30 秒；账号余量、有效期及活动折扣以控制台为准。这些是公开单价估算，不是实测账单，不含重试。[官方价格](https://help.aliyun.com/zh/model-studio/model-pricing)
 
 Qwen Flash 使用非思考模式 JSON Object，再由服务端校验 Schema、镜头数量和时长；JSON Object 本身不保证字段结构。请求上限为 8,192 个输出 Token；Base URL 仅接受官方 HTTPS 地址，不跟随重定向。[官方结构化输出说明](https://help.aliyun.com/en/model-studio/qwen-structured-output)
 
-万相 3.0 已实现文生视频：480P、2–30 秒整数、带声音、组合 Prompt 上限 20,000 字符，保留 15 秒三镜头及 30 秒五镜头规划。每个镜头分别生成，不自动拼接。旧 2.2 / 2.6 接入仍保留；2.2 固定 5 秒，不支持默认 30 秒规划里的 6 秒镜头。各模型免费额度独立，不静默改时长或切换收费模型。
+万相 3.0 已实现文生视频：480P、2–30 秒整数、带声音、组合 Prompt 上限 20,000 字符，保留 15 秒三镜头及 30 秒五镜头规划。每个镜头分别生成；全部选中后可用本地 FFmpeg 合并 First Cut。旧 2.2 / 2.6 接入仍保留；2.2 固定 5 秒，不支持默认 30 秒规划里的 6 秒镜头。各模型免费额度独立，不静默改时长或切换收费模型。
 
-完整配置、成本、首次真实验收和错误排查见 [REAL_API_SETUP.md](REAL_API_SETUP.md)。万相结果链接 24 小时有效，本版不永久存储媒体，需从 Open clip 保存。协议和持久化测试使用模拟响应；另外已完成 Qwen 3.8 + 万相 3.0 单个 5 秒真实片段的生成、播放、技术评审和导出，具体范围见 [TEST_RESULTS.md](TEST_RESULTS.md)。
+完整配置、成本、首次真实验收和错误排查见 [REAL_API_SETUP.md](REAL_API_SETUP.md)。服务商结果链接可能过期；应用在预览或构建时缓存完成片段，缓存前过期仍可能失败。备份时同时保留 SQLite 与 MEDIA_ROOT。协议和持久化测试使用模拟响应；另外已完成 Qwen 3.8 + 万相 3.0 三个 5 秒真实片段的生成、First Cut 合并、播放和导出，具体范围见 [TEST_RESULTS.md](TEST_RESULTS.md)。
 
 ## 验证命令
 
@@ -107,8 +113,8 @@ E2E 在 3100 端口启动独立服务、使用 `prisma/e2e.db`，不会写入日
 
 1. 将源码放入自己的 GitHub 仓库；不要上传 `.env`、数据库或测试输出。
 2. Railway 新建服务，选择该仓库及本项目根目录，使用 Dockerfile，保持单实例。
-3. 增加持久卷挂载 `/data`，设置 `DATABASE_URL=file:/data/studio.db`，提供 APP_PASSWORD、SESSION_SECRET；先保持双 Mock。
-4. 镜像启动时在挂载后的文件系统执行迁移，不在没有持久卷的预部署阶段迁移。设置健康检查 `/api/health`。
+3. 增加持久卷挂载 `/data`，设置 `DATABASE_URL=file:/data/studio.db`、`MEDIA_ROOT=/data/media`，提供 APP_PASSWORD、SESSION_SECRET；先保持双 Mock。
+4. 首次启动后可在容器中显式执行 `node scripts/seed-example.mjs` 导入预制项目。镜像启动时在挂载后的文件系统执行迁移，不在没有持久卷的预部署阶段迁移。设置健康检查 `/api/health`。
 5. 部署成功后开启 HTTPS 地址，验证未登录跳转、登录、创建项目、重启恢复，再在平台 Secrets 配置 Live Key（如需要）。
 6. 使用平台持久卷备份，升级前备份数据库；不配置副本共享同一 SQLite 文件。[Railway 持久卷说明](https://docs.railway.com/volumes/reference)
 
@@ -133,8 +139,8 @@ docker run --rm -p 3000:3000 -v frame-data:/data --env-file .env.production fram
 - [三分钟 Demo 指南](DEMO_GUIDE.md)
 - [实际测试记录](TEST_RESULTS.md)
 
-核心技术亮点：版本检查、服务端 Schema 校验、输入快照、Provider 能力检查、数据库恢复和幂等事件。产品亮点：从营销任务出发、共享视觉说明、可追溯尝试和不混淆 Mock 的指标。它们是已实现的流程能力，不等于已验证的商业效果。
+核心技术亮点：版本检查、服务端校验、生成/选片快照、能力检查、媒体缓存和恢复。产品亮点：围绕项目的 Plan → Generate & Select → Preview & Export。它们是已实现的流程能力，不等于已验证的商业效果。
 
 ## 代码结构
 
-`src/app` 为页面和 REST 接口；`src/components` 为英文工作台；`src/lib` 为 Schema、业务服务、权限、指标及 Provider；`prisma` 为 Schema 与迁移；`tests` 为业务、协议和浏览器测试；`public/mock` 为原创带水印的演示视频。
+`src/app` 为页面和 REST 接口；`src/components` 为英文工作台；`src/lib` 为 Schema、业务服务、权限、指标及 Provider；`prisma` 为 Schema 与迁移；`tests` 为业务、协议和浏览器测试；`public/mock` 为带水印测试视频；`public/examples` 为已生成的真实示例与清单；`.local-media` 为被忽略的本地缓存。

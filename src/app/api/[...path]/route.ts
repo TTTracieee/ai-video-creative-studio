@@ -7,6 +7,8 @@ import * as service from "@/lib/service";
 import { videoProvider, storyboardProvider } from "@/lib/providers";
 import { getAnalytics } from "@/lib/analytics";
 import { assertSameOrigin, authorized, AUTH_COOKIE, passwordRequired } from "@/lib/auth";
+import { buildFirstCut } from "@/lib/first-cut";
+import { cacheClip, mediaPath, videoResponse } from "@/lib/media";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,15 +16,36 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
   const sessionId = request.cookies.get("studio-session")?.value || randomUUID();
   const context = { sessionId };
   try {
-    if (request.method !== "GET")
+    if (!["GET", "HEAD"].includes(request.method))
       assertSameOrigin(request.headers.get("origin"), request.headers.get("host"));
     const { path } = await route.params;
     const [root, id, action, child, operation] = path;
     if (root !== "health" && !authorized(request.cookies.get(AUTH_COOKIE)?.value))
       throw new AppError("UNAUTHORIZED", "Sign in to access this private studio.", 401);
     const method = request.method;
+    if (root === "media" && ["GET", "HEAD"].includes(method)) {
+      if (id === "tasks") {
+        const task = await db.generationTask.findUnique({ where: { id: action } });
+        if (!task) throw new AppError("NOT_FOUND", "Clip not found.", 404);
+        return await videoResponse(await cacheClip(db, task), request, "scene-clip.mp4");
+      }
+      if (id === "outputs") {
+        const output = await db.projectOutput.findUnique({
+          where: { id: action },
+          include: { project: { select: { name: true } } },
+        });
+        if (!output?.mediaPath || output.status !== "completed")
+          throw new AppError("NOT_FOUND", "First cut not found.", 404);
+        return await videoResponse(
+          mediaPath(output.mediaPath),
+          request,
+          `${output.project.name}-first-cut.mp4`,
+        );
+      }
+      throw new AppError("NOT_FOUND", "Media not found.", 404);
+    }
     let body: unknown;
-    if (method !== "GET") {
+    if (!["GET", "HEAD"].includes(method)) {
       try {
         body = await request.json();
       } catch {
@@ -50,14 +73,11 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
         capabilities: video.capabilities,
         setupRequired: [...new Set(required)].filter((name) => !process.env[name]?.trim()),
         passwordRequired: passwordRequired(),
+        developmentTools: process.env.ENABLE_DEV_TOOLS === "true",
       };
     } else if (root === "analytics" && method === "GET")
       data = await getAnalytics(db, Object.fromEntries(request.nextUrl.searchParams));
-    else if (root === "projects" && !id && method === "GET")
-      data = await db.project.findMany({
-        orderBy: { updatedAt: "desc" },
-        include: { _count: { select: { scenes: true, tasks: true } } },
-      });
+    else if (root === "projects" && !id && method === "GET") data = await service.listProjects(db);
     else if (root === "projects" && !id && method === "POST")
       data = await service.createProject(db, body, context);
     else if (root === "projects" && id && !action && method === "GET")
@@ -66,10 +86,21 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
       data = await service.updateProject(db, id, body, context);
     else if (root === "projects" && id && !action && method === "DELETE")
       data = await service.deleteProject(db, id, body);
+    else if (root === "projects" && action === "duplicate" && method === "POST")
+      data = await service.duplicatePlan(db, id, context);
+    else if (root === "projects" && action === "first-cut" && method === "POST")
+      data = await buildFirstCut(db, id, body);
     else if (root === "projects" && action === "storyboard" && method === "POST")
       data = await service.generateBoard(db, id, body, context);
     else if (root === "projects" && action === "storyboard" && method === "PUT")
       data = await service.saveBoard(db, id, body, context);
+    else if (
+      root === "projects" &&
+      action === "scenes" &&
+      operation === "select" &&
+      method === "PUT"
+    )
+      data = await service.selectSceneVersion(db, id, child, body);
     else if (
       root === "projects" &&
       action === "scenes" &&
@@ -130,4 +161,11 @@ async function handle(request: NextRequest, route: { params: Promise<{ path: str
     );
   }
 }
-export { handle as GET, handle as POST, handle as PUT, handle as PATCH, handle as DELETE };
+export {
+  handle as HEAD,
+  handle as GET,
+  handle as POST,
+  handle as PUT,
+  handle as PATCH,
+  handle as DELETE,
+};

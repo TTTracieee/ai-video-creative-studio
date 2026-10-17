@@ -44,6 +44,22 @@ export type Profile = z.infer<typeof profileSchema>;
 export type SceneContent = z.infer<typeof sceneSchema>;
 export type SceneRecord = z.infer<typeof sceneRecordSchema>;
 export type Snapshot = z.infer<typeof snapshotSchema>;
+export const firstCutSnapshotSchema = z.object({
+  aspectRatio: briefSchema.shape.aspectRatio,
+  targetDuration: briefSchema.shape.duration,
+  scenes: z
+    .array(
+      z.object({
+        sceneId: z.string().min(1),
+        taskId: z.string().min(1),
+        title: z.string().min(1),
+        plannedDuration: z.number().int().min(1).max(30),
+      }),
+    )
+    .min(1)
+    .max(12),
+});
+export type FirstCutSnapshot = z.infer<typeof firstCutSnapshotSchema>;
 export type Mode = "mock" | "live";
 export type TaskStatus = "pending" | "processing" | "completed" | "failed";
 export const sampleBrief: Brief = {

@@ -11,3 +11,5 @@ prisma/*.db-*
 test-results
 playwright-report
 docs/images
+
+.local-media

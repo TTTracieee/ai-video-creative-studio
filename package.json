@@ -16,7 +16,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate",
-    "test:production": "node scripts/smoke-production.mjs"
+    "test:production": "node scripts/smoke-production.mjs",
+    "db:seed-example": "node scripts/seed-example.mjs"
   },
   "dependencies": {
     "@prisma/client": "6.19.0",

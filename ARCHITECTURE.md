@@ -22,15 +22,16 @@ flowchart LR
 
 ## 数据模型
 
-- Project：Brief JSON、Visual Consistency Profile JSON、profileVersion、revision、origin、storyboardMode、生成及修改时间。
-- Scene：Project 外键、顺序和经 Zod 校验的结构化分镜内容。编辑保持已有 ID；删除时任务 sceneId 设为 null。
-- GenerationTask：Provider/Mode、状态、远端 ID、输入快照、时间、结果 URL、错误、重试关联和唯一 idempotencyKey。
+- Project：Brief JSON、Creative Direction JSON（字段仍名 profile）、profileVersion、revision、origin、storyboardMode、生成及修改时间。
+- Scene：Project 外键、顺序、selectedGenerationTaskId 和经 Zod 校验的结构化分镜内容。编辑保持已有 ID；删除时任务 sceneId 设为 null。
+- GenerationTask：Provider/Mode、状态、远端 ID、输入快照、时间、结果 URL / localMediaPath、错误、重试关联和唯一 idempotencyKey。
+- ProjectOutput：状态、选片快照、selectionKey 哈希、模式、媒体路径、实际时长与错误；同项目同快照唯一。
 - Review：每个任务至多一份最新评分和反馈；更新不增加样本数。
 - Event：事件名、时间、Session ID、Project ID、origin、mode、properties、唯一去重键。
 
 SQLite 文件被忽略，不提交到 Git。迁移脚本先确保文件和父目录存在，再运行 Prisma migrate deploy；已有文件不截断。测试使用临时数据库或独立 e2e.db。
 
-项目整体删除使用现有外键 Cascade，在事务中检查 revision、Pending/Processing 任务，再按相同条件执行删除，清理 Scene、GenerationTask、Review 和 Event。单独删除 Scene 仍为 SetNull，不删除历史尝试。项目删除不请求外部服务取消任务或删除媒体；项目事件删除后 Analytics 不再统计该项目。确认框展示关联数量、不可恢复说明和费用边界，可只同步活动任务状态后再删除。
+项目整体删除使用现有外键 Cascade，在事务中检查 revision、Pending/Processing 任务，再按相同条件执行删除，清理 Scene、GenerationTask、Review、Event、ProjectOutput 及该项目的本地媒体目录；构建中的输出也阻止删除。单独删除 Scene 仍为 SetNull，不删除历史尝试。项目删除不请求外部服务取消任务或删除远端媒体；项目事件删除后 Analytics 不再统计该项目。确认框展示关联数量、不可恢复说明和费用边界，可只同步活动任务状态后再删除。
 
 ## 公共接口
 
@@ -67,7 +68,7 @@ Profile 的四个字段是共享文本说明。最终 Prompt = 镜头 Prompt + �
 
 真实万相通过 `wan2.2` / `wan2.6` 固定模型与分辨率，避免修改默认配置后把历史重试改成另一收费规格。前者为 wan2.2-t2v-plus / 480P / 5 秒 / Prompt 800 字符，后者为 wan2.6-t2v / 720P / 2–15 秒 / Prompt 1,500 字符。同一百炼 Key 和 Base URL 复用；提交请求使用 Bearer、X-DashScope-Async=enable 和 `/api/v1/services/aigc/video-generation/video-synthesis`，查询 `/api/v1/tasks/:id`，约 15 秒轮询。Prompt 扩写关闭，始终传入保存的最终 Prompt；Qwen 根据共享档案占用和视频能力预留字数，用户输入不截断。
 
-万相 Pending/Running 映射为 pending/processing，Succeeded 为 completed，Failed/Canceled/Unknown 为 failed。HTTP 5xx/408、网络失败或无可确认任务 ID 的提交响应标为 SUBMISSION_UNKNOWN，不重发；查询错误保留原任务。时间采用本地观察到开始/终态的时刻，耗时包含轮询延迟，不假装具有服务商精确计时。返回的 HTTPS 视频 URL 约 24 小时有效，本版不下载或永久归档媒体。配置接口仅返回缺失环境变量的名称，缺少配置时工作台明确提示且禁用生成。
+万相 Pending/Running 映射为 pending/processing，Succeeded 为 completed，Failed/Canceled/Unknown 为 failed。HTTP 5xx/408、网络失败或无可确认任务 ID 的提交响应标为 SUBMISSION_UNKNOWN，不重发；查询错误保留原任务。时间采用本地观察到开始/终态的时刻，耗时包含轮询延迟，不假装具有服务商精确计时。返回的 HTTPS 视频 URL 约 24 小时有效，预览或合并时流式缓存到 MEDIA_ROOT；首次缓存之前 URL 过期仍会失败。配置接口仅返回缺失环境变量的名称，缺少配置时工作台明确提示且禁用生成。
 
 VideoProvider 暴露 capabilities / submit / getStatus。提交前检查时长、整数要求、比例和组合 Prompt 长度。Mock 和旧版 BACH v1 以 1–8 秒为范围；不静默裁切。
 
@@ -95,8 +96,23 @@ mode 分 mock/live，Brief 事件为 neutral；origin 分 user/demo，测试数�
 
 开发模式无密码时仅监听 127.0.0.1。生产模式默认拒绝未认证访问，即使未配置密码也不开放工作台。APP_PASSWORD 至少 12 字符，SESSION_SECRET 至少 32 字符；登录签发 8 小时 HttpOnly / SameSite=Lax Cookie，生产加 Secure。Proxy 和业务 API 都检查权限；变更操作校验 Origin/Host。简单单进程登录限额：10 次失败后等待 10 分钟。
 
-密钥不会出现在配置响应或客户端代码中；外部错误不直接转发原始响应。真实视频仅保存 URL，过期后提示不可播放；不承诺永久媒体托管。单人密码保护不是多人账号系统，退出清除浏览器 Cookie，不提供企业级全局会话撤销。
+密钥不会出现在配置响应或客户端代码中；外部错误不直接转发原始响应。真实视频缓存与输出位于本地目录，不是云媒体托管；未缓存的过期链接会报错。单人密码保护不是多人账号系统，退出清除浏览器 Cookie，不提供企业级全局会话撤销。
 
 ## 部署
 
 Docker 使用 Next.js standalone 和生产依赖，运行迁移后启动。Railway 单实例挂载 /data；不把 SQLite 放在临时文件系统。实际部署验证状态见 TEST_RESULTS.md。
+
+## P0 选片与 First Cut
+
+- `PUT /api/projects/:id/scenes/:sceneId/select`：revision、taskId；验证项目/镜头归属、成功状态和有效结果链接，事务保存选择并递增版本。
+- `POST /api/projects/:id/first-cut`：revision；要求每个 Scene 有成功选片。按顺序保存 Scene/Task/标题/规划时长/目标时长/画幅快照，对快照做 SHA256。相同快照复用已完成文件，处理中返回已有输出，失败或文件缺失允许重建。
+- `POST /api/projects/:id/duplicate`：只复制 Brief、Creative Direction 与分镜，创建 user 来源项目，不复制视频/选择。
+- `GET/HEAD /api/media/tasks/:id`、`/api/media/outputs/:id`：受现有权限保护，支持 Range、HEAD 和 `?download=1`。只按数据库映射解析受限媒体根目录路径，不接受任意客户端文件路径。
+
+首次完成任务在同事务里仅对 selectedGenerationTaskId=null 的 Scene 设置选择，后续成功保留选择。UI 状态由有效选片、活动任务、匹配输出推导，不另存 projectStatus。编辑 Prompt/Creative Direction 不篡改历史生成或选片；选择、顺序、画幅、目标/镜头规划时长或标题变化时输出签名变化，界面提示重建。历史输出快照不覆盖。
+
+合并先缓存已选片段，再用 ffprobe 获取实际视频时长，统一画布、30fps、H.264/yuv420p、AAC/stereo/48kHz；缺音轨时填静音，有音轨时保留并按视频时长补齐。随后 concat copy 输出，文件临时写入后重命名。视频没有按规划秒数裁切或补帧，界面展示实际值。输出音频仅硬切，无新增音频编辑功能。处理错误保留选片；超过15分钟的遗留 processing 构建在读取项目时转为 failed，可重建。
+
+缓存目录默认 `.local-media`，被 Git 和 Docker build context 忽略；生产挂载 `/data/media`。需要 FFmpeg/ffprobe。初剪失败和过期源给出可操作错误，不自动调用模型替换。`public/examples/morning-brew` 是真实生成的稳定示例素材与无凭证清单；`seed-example.mjs` 幂等导入并且不发网络请求。本地初次安装显式执行 `npm run db:seed-example`，容器可执行 `node scripts/seed-example.mjs`；普通重启不恢复已删除 Example。
+
+媒体与 SQLite 需一起备份。单实例本地实现没有持久后台队列；页面关闭后当前服务请求可能完成，服务终止则构建转为可重试失败。未添加 MP4 下载埋点；已有 project_exported 指 JSON 导出，不可冒充 First Cut 完成率。

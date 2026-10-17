@@ -8,7 +8,6 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
-  BarChart3,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -24,7 +23,6 @@ import {
   Plus,
   RefreshCw,
   Save,
-  Settings2,
   ShieldCheck,
   Sparkles,
   Star,
@@ -37,6 +35,7 @@ import {
   composePrompt,
   defaultProfile,
   sampleBrief,
+  sceneRecordSchema,
   type Brief,
   type Profile,
   type SceneRecord,
@@ -45,6 +44,8 @@ import type { ConfigView, ProjectView, TaskView } from "@/lib/client-types";
 
 import { api } from "@/lib/client-api";
 import Analytics from "./analytics";
+import GenerateSelect from "./generate-select";
+import FirstCutPreview from "./first-cut-preview";
 const profileFields: [keyof Profile, string][] = [
   ["characterIdentity", "Character Identity"],
   ["productAppearance", "Product Appearance"],
@@ -71,7 +72,7 @@ function date(value: string) {
 function ModeBadge({ mode }: { mode: string }) {
   return (
     <span className={`badge ${mode === "live" ? "live" : "mock"}`}>
-      {mode === "live" ? "Live" : "Mock / Demo"}
+      {mode === "live" ? "Live" : "Mock"}
     </span>
   );
 }
@@ -119,14 +120,13 @@ export default function Studio() {
     videoProvider: "mock",
     capabilities: { minDuration: 1, maxDuration: 8 },
   });
-  const [tab, setTab] = useState("storyboard");
+  const [tab, setTab] = useState("plan");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pollError, setPollError] = useState("");
   const [scenario, setScenario] = useState("success");
-  const [showProfile, setShowProfile] = useState(true);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const reload = useCallback(
     async (drafts = true) => {
@@ -149,7 +149,7 @@ export default function Studio() {
       setError("");
       setNotice("");
       setProject(null);
-      setTab(parts[2] === "settings" ? "brief" : "storyboard");
+      setTab("plan");
       try {
         const cfg = await api<ConfigView>("config");
         if (!active) return;
@@ -158,6 +158,11 @@ export default function Studio() {
           const p = await api<ProjectView>(`projects/${projectId}`);
           if (!active) return;
           setProject(p);
+          setTab(
+            parts[2] !== "settings" && p.outputIsCurrent && p.output?.status === "completed"
+              ? "preview"
+              : "plan",
+          );
           setBrief(p.brief);
           setProfile(p.profile);
           setScenes(p.scenes);
@@ -225,7 +230,15 @@ export default function Studio() {
       clearInterval(timer);
     };
   }, [pendingIds, busy, projectId, reload, config.videoMode, config.pollIntervalMs]);
-  const dirtyScenes = !!project && JSON.stringify(scenes) !== JSON.stringify(project.scenes);
+  useEffect(() => {
+    if (project?.output?.status !== "processing" || busy) return;
+    const timer = setInterval(() => void reload(false).catch((e) => setPollError(e.message)), 2000);
+    return () => clearInterval(timer);
+  }, [project?.output?.status, busy, reload]);
+  const dirtyScenes =
+    !!project &&
+    JSON.stringify(scenes.map((s) => sceneRecordSchema.parse(s))) !==
+      JSON.stringify(project.scenes.map((s) => sceneRecordSchema.parse(s)));
   const dirtyProfile = !!project && JSON.stringify(profile) !== JSON.stringify(project.profile);
   const dirtyBrief =
     !!project &&
@@ -283,7 +296,7 @@ export default function Studio() {
   }
   function ensureSaved() {
     if (dirty)
-      throw new Error("Save your brief, consistency profile, and scene edits before generating.");
+      throw new Error("Save your brief, creative direction, and scene edits before generating.");
   }
   function validateBrief() {
     const result = briefSchema.safeParse(brief);
@@ -317,7 +330,7 @@ export default function Studio() {
       idempotencyKey: crypto.randomUUID(),
     });
     await reload(false);
-    setTab("review");
+    setTab("generate");
   }
   async function exportData(boardOnly = false) {
     if (dirty) throw new Error("Save your edits before exporting.");
@@ -350,11 +363,19 @@ export default function Studio() {
       return copy;
     });
   }
+  const missingSceneIds =
+    project?.scenes
+      .filter(
+        (scene) =>
+          !scene.selectedGenerationTaskId &&
+          !project.tasks.some(
+            (task) => task.sceneId === scene.id && ["pending", "processing"].includes(task.status),
+          ),
+      )
+      .map((scene) => scene.id) ?? [];
   const nav = [
-    ["/", "Overview", LayoutDashboard],
+    ["/", "Projects", LayoutDashboard],
     ["/projects/new", "New project", Plus],
-    ["/tasks", "Generation tasks", Clapperboard],
-    ["/analytics", "Analytics", BarChart3],
   ] as const;
 
   return (
@@ -381,6 +402,15 @@ export default function Studio() {
             </Link>
           ))}
         </nav>
+        <details className="internal-tools">
+          <summary>Workspace tools</summary>
+          <Link className="nav-item" href="/tasks">
+            Generation activity
+          </Link>
+          <Link className="nav-item" href="/analytics">
+            Internal analytics
+          </Link>
+        </details>
         <div className="sidebar-note">
           <Leaf size={22} />
           <strong>
@@ -414,9 +444,6 @@ export default function Studio() {
                     : "Overview"}
           </span>
           <div className="topbar-right">
-            <span className="mode-dot" />{" "}
-            <span>Video: {config.videoMode === "mock" ? "Mock mode" : "Live mode"}</span>
-            <span className="top-divider" />
             <span className="tiny">LOCAL-FIRST STUDIO</span>
             {config.passwordRequired && (
               <button
@@ -486,47 +513,6 @@ export default function Studio() {
                       New project
                     </Link>
                   </div>
-                  <section className="welcome-hero">
-                    <div>
-                      <span className="hero-tag">
-                        <Sparkles size={14} /> FROM BRIEF TO BETTER PROMPTS
-                      </span>
-                      <h2>
-                        A story worth
-                        <br />
-                        bringing to life.
-                      </h2>
-                      <p>
-                        Shape your concept. Plan every scene.
-                        <br />
-                        Keep the details that make your brand, yours.
-                      </p>
-                      <button
-                        className="btn primary"
-                        disabled={busy}
-                        onClick={() =>
-                          run(async () => {
-                            const p = await api<ProjectView>("projects", "POST", {
-                              brief: sampleBrief,
-                              origin: "demo",
-                            });
-                            router.push(`/projects/${p.id}`);
-                          })
-                        }
-                      >
-                        Try the coffee campaign <ArrowRight size={17} />
-                      </button>
-                      <span className="hero-footnote">
-                        Sample project · template storyboard · mock video
-                      </span>
-                    </div>
-                    <div className="hero-art">
-                      <SceneArt large />
-                      <span className="hero-art-chip">
-                        <Clapperboard size={15} /> Morning Brew · 15s plan
-                      </span>
-                    </div>
-                  </section>
                   <div className="section-heading">
                     <h2>
                       Your projects <span className="count">{projects.length}</span>
@@ -546,17 +532,22 @@ export default function Studio() {
                             <div className="project-card-body">
                               <div className="row-between">
                                 <span className="project-category">{p.brief.targetPlatform}</span>
-                                <span className="badge">
-                                  {p.origin === "demo" ? "Sample" : "User-created"}
-                                </span>
+                                {p.origin === "demo" && <span className="badge">Example</span>}
                               </div>
                               <h3>{p.name}</h3>
                               <p>
-                                {p.brief.duration}s plan <span>·</span> {p.brief.aspectRatio}{" "}
-                                <span>·</span> {p._count?.scenes || 0} scenes
+                                {p.brief.duration}s target <span>·</span> {p.brief.aspectRatio}{" "}
+                                <span>·</span> {p.progress.selectedCount} / {p.progress.sceneCount}{" "}
+                                selected
                               </p>
                               <div className="project-card-foot">
-                                <span>{date(p.updatedAt)}</span>
+                                <span>
+                                  {p.progress.label}
+                                  {p.progress.activeCount > 0 &&
+                                    ` · ${p.progress.activeCount} generating`}
+                                  <br />
+                                  <small>{date(p.updatedAt)}</small>
+                                </span>
                                 <ArrowRight size={16} />
                               </div>
                             </div>
@@ -582,15 +573,14 @@ export default function Studio() {
                     <div className="empty">
                       <FileText size={29} />
                       <h3>Your first story is waiting.</h3>
-                      <p>Create a project or try the sample above. No API key needed.</p>
+                      <p>Create a project to start planning your video.</p>
                     </div>
                   )}
                   <div className="workflow-strip">
                     {[
-                      [FileText, "01", "Write your brief"],
-                      [WandSparkles, "02", "Shape your scenes"],
-                      [ShieldCheck, "03", "Share visual direction"],
-                      [CirclePlay, "04", "Generate & review"],
+                      [FileText, "01", "Plan your story"],
+                      [CirclePlay, "02", "Generate & select"],
+                      [Film, "03", "Preview & export"],
                     ].map(([Icon, n, t]) => {
                       const I = Icon as typeof FileText;
                       return (
@@ -623,7 +613,7 @@ export default function Studio() {
                         setFormErrors({});
                       }}
                     >
-                      Use Morning Brew example
+                      Fill example brief
                     </button>
                   </div>
                   <div className="brief-layout">
@@ -657,16 +647,10 @@ export default function Studio() {
                       <div className="aside-note">
                         <strong>What happens next?</strong>
                         <p>
-                          We’ll help you plan scenes, define shared visual details, and review
-                          individual video clips.
+                          We’ll help you plan scenes, define shared visual details, and review a
+                          first cut assembled from your chosen video clips.
                         </p>
                       </div>
-                      <ModeBadge mode={config.storyboardMode} />
-                      <p className="tiny">
-                        {config.storyboardMode === "mock"
-                          ? "Template-based storyboards are labeled as Mock. No model is called in this mode."
-                          : "Your brief is sent to the configured LLM when you generate a storyboard."}
-                      </p>
                     </aside>
                   </div>
                 </>
@@ -680,13 +664,15 @@ export default function Studio() {
                   <div className="page-heading project-heading">
                     <div>
                       <div className="eyebrow">
-                        {project.origin === "demo" ? "SAMPLE CAMPAIGN" : "YOUR CAMPAIGN"}
-                        <ModeBadge mode={project.storyboardMode || config.storyboardMode} />
+                        YOUR PROJECT{" "}
+                        {project.origin === "demo" && <span className="badge">Example</span>}
                       </div>
                       <h1>{project.name}</h1>
                       <p>
                         {project.brief.targetPlatform} <span>·</span> {project.brief.aspectRatio}{" "}
-                        <span>·</span> {project.brief.duration}s storyboard plan
+                        <span>·</span> {project.brief.duration}s target ·{" "}
+                        {project.progress.selectedCount} / {project.progress.sceneCount} selected ·{" "}
+                        {project.progress.label}
                       </p>
                     </div>
                     <div className="button-row">
@@ -703,23 +689,32 @@ export default function Studio() {
                         onClick={() => run(() => exportData())}
                       >
                         <Download size={16} />
-                        Export project
+                        Export project data
                       </button>
-                      <Link
-                        href={`/projects/${project.id}/settings`}
-                        className="icon-btn"
-                        aria-label="Project settings"
+                      <button
+                        className="btn"
+                        disabled={busy || dirty}
+                        title="Copy the plan without generated media"
+                        onClick={() =>
+                          run(async () => {
+                            const copy = await api<{ id: string }>(
+                              `projects/${project.id}/duplicate`,
+                              "POST",
+                              {},
+                            );
+                            router.push(`/projects/${copy.id}`);
+                          })
+                        }
                       >
-                        <Settings2 size={19} />
-                      </Link>
+                        Duplicate plan
+                      </button>
                     </div>
                   </div>
                   <div className="studio-tabs">
                     {[
-                      ["brief", "01", "Creative brief"],
-                      ["storyboard", "02", "Storyboard"],
-                      ["consistency", "03", "Visual consistency"],
-                      ["review", "04", "Generate & review"],
+                      ["plan", "01", "Plan"],
+                      ["generate", "02", "Generate & Select"],
+                      ["preview", "03", "Preview & Export"],
                     ].map(([id, n, label]) => (
                       <button
                         key={id}
@@ -728,14 +723,15 @@ export default function Studio() {
                       >
                         <span>{n}</span>
                         {label}
-                        {id === "review" && project.tasks.length > 0 && (
-                          <b>{project.tasks.length}</b>
-                        )}
                       </button>
                     ))}
                   </div>
-                  {tab === "brief" && (
-                    <section className="panel">
+                  {tab === "plan" && (
+                    <details className="panel brief-plan" open={!scenes.length}>
+                      <summary>
+                        Creative brief{" "}
+                        <span className="muted tiny"> · Edit campaign requirements</span>
+                      </summary>
                       <div className="section-heading">
                         <h2>Creative brief</h2>
                         <span className="muted tiny">
@@ -770,21 +766,15 @@ export default function Studio() {
                           Save brief
                         </button>
                       </div>
-                    </section>
+                    </details>
                   )}
-                  {(tab === "storyboard" || tab === "consistency") && (
+                  {tab === "plan" && (
                     <>
                       <div className="section-heading storyboard-toolbar">
                         <div>
-                          <h2>
-                            {tab === "consistency"
-                              ? "The details that stay with your story"
-                              : "Your story, scene by scene"}
-                          </h2>
+                          <h2>Your story, scene by scene</h2>
                           <p className="muted">
-                            {tab === "consistency"
-                              ? "One shared direction, referenced in every generation."
-                              : "Fine-tune the moments. Make the story your own."}
+                            Edit each scene and the creative direction shared by future generations.
                           </p>
                         </div>
                         <div className="button-row">
@@ -854,9 +844,7 @@ export default function Studio() {
                           generating or exporting.
                         </div>
                       )}
-                      <div
-                        className={`workspace-grid ${showProfile || tab === "consistency" ? "with-profile" : ""}`}
-                      >
+                      <div className="workspace-grid with-profile">
                         <div>
                           {!scenes.length ? (
                             <div className="empty board-empty">
@@ -869,10 +857,9 @@ export default function Studio() {
                                 {project.brief.duration === 15 ? "three" : "five"}-scene storyboard,
                                 then make it yours.
                               </p>
-                              <ModeBadge mode={config.storyboardMode} />
-                              <p className="tiny">
-                                Mock mode uses editable templates, not an AI model.
-                              </p>
+                              {config.storyboardMode === "mock" && (
+                                <p className="tiny muted">Starts with an editable template.</p>
+                              )}
                             </div>
                           ) : (
                             <>
@@ -997,23 +984,13 @@ export default function Studio() {
                                                 { revision: project.revision },
                                               );
                                               await reload();
-                                            }, "Scene regenerated with the shared visual profile.")
+                                            }, "Scene rewritten with the shared creative direction.")
                                           }
                                         >
                                           <RefreshCw size={13} />
                                           Rewrite
                                         </button>
                                       </div>
-                                      <button
-                                        className="btn full"
-                                        disabled={
-                                          busy || dirty || setupMissing || !!sceneIssue(scene)
-                                        }
-                                        onClick={() => run(() => generateClips([scene.id]))}
-                                      >
-                                        <CirclePlay size={15} />
-                                        Generate clip
-                                      </button>
                                     </div>
                                   </article>
                                 ))}
@@ -1051,123 +1028,131 @@ export default function Studio() {
                             </>
                           )}
                         </div>
-                        {(showProfile || tab === "consistency") && (
-                          <aside className="consistency-panel">
-                            <div className="row-between">
-                              <span className="icon-tile small">
-                                <ShieldCheck size={19} />
-                              </span>
-                              <span className="tiny muted">PROFILE V{project.profileVersion}</span>
-                            </div>
-                            <h3>
-                              Visual Consistency
-                              <br />
-                              Profile
-                            </h3>
-                            <p className="muted">The shared details that guide every scene.</p>
-                            {profileFields.map(([key, label]) => (
-                              <label key={key}>
-                                {label}
-                                <textarea
-                                  aria-label={label}
-                                  rows={3}
-                                  value={profile[key]}
-                                  onChange={(e) =>
-                                    setProfile({ ...profile, [key]: e.target.value })
-                                  }
-                                />
-                              </label>
-                            ))}
-                            <button
-                              className="btn primary full"
-                              disabled={busy}
-                              onClick={() =>
-                                run(async () => {
-                                  await api(`projects/${project.id}`, "PATCH", {
-                                    revision: project.revision,
-                                    profile,
-                                  });
-                                  const updated = await api<ProjectView>(`projects/${project.id}`);
-                                  setProject(updated);
-                                  setProfile(updated.profile);
-                                }, "Visual profile saved. Future generations will reference it.")
-                              }
-                            >
-                              <Save size={15} />
-                              Save profile{dirtyProfile ? " *" : ""}
-                            </button>
-                            <div className="profile-disclaimer">
-                              <ShieldCheck size={15} />
-                              <span>
-                                Prompt guidance only. Actual visual consistency depends on the model
-                                and is not guaranteed.
-                              </span>
-                            </div>
-                          </aside>
-                        )}
+                        <aside className="consistency-panel">
+                          <div className="row-between">
+                            <span className="icon-tile small">
+                              <ShieldCheck size={19} />
+                            </span>
+                            <span className="tiny muted">DIRECTION V{project.profileVersion}</span>
+                          </div>
+                          <h3>Creative Direction</h3>
+                          <p className="muted">
+                            Shared guidance for future generations. Existing clips stay unchanged.
+                          </p>
+                          {profileFields.map(([key, label]) => (
+                            <label key={key}>
+                              {label}
+                              <textarea
+                                aria-label={label}
+                                rows={3}
+                                value={profile[key]}
+                                onChange={(e) => setProfile({ ...profile, [key]: e.target.value })}
+                              />
+                            </label>
+                          ))}
+                          <button
+                            className="btn primary full"
+                            disabled={busy}
+                            onClick={() =>
+                              run(async () => {
+                                await api(`projects/${project.id}`, "PATCH", {
+                                  revision: project.revision,
+                                  profile,
+                                });
+                                const updated = await api<ProjectView>(`projects/${project.id}`);
+                                setProject(updated);
+                                setProfile(updated.profile);
+                              }, "Creative direction saved. Future generations will reference it.")
+                            }
+                          >
+                            <Save size={15} />
+                            Save direction{dirtyProfile ? " *" : ""}
+                          </button>
+                          <div className="profile-disclaimer">
+                            <ShieldCheck size={15} />
+                            <span>
+                              Prompt guidance only. Actual visual consistency depends on the model
+                              and is not guaranteed.
+                            </span>
+                          </div>
+                        </aside>
                       </div>
                       <div className="generation-bar">
                         <div>
                           <strong>
-                            {scenes.length} scenes · {project.brief.duration}s plan
+                            {scenes.length} scenes · {total} / {project.brief.duration}s planned
                           </strong>
-                          <span>Individual clips only. No automatic stitching.</span>
-                          {config.videoDescription && <span>{config.videoDescription}</span>}
+                          <span>
+                            Choose one generated version per scene, then build your first cut.
+                          </span>
                         </div>
-                        <div className="button-row">
-                          <button className="text-btn" onClick={() => setShowProfile(!showProfile)}>
-                            {showProfile ? "Hide" : "Show"} visual profile
-                          </button>
-                          {config.videoMode === "mock" && (
-                            <select
-                              aria-label="Mock scenario"
-                              value={scenario}
-                              onChange={(e) => setScenario(e.target.value)}
-                            >
-                              <option value="success">Mock: success</option>
-                              <option value="fail">Mock: simulate failure</option>
-                            </select>
-                          )}
-                          <button
-                            className="btn primary"
-                            disabled={
-                              busy ||
-                              setupMissing ||
-                              dirty ||
-                              !scenes.length ||
-                              total !== project.brief.duration ||
-                              scenes.some((scene) => !!sceneIssue(scene))
-                            }
-                            onClick={() => run(() => generateClips(scenes.map((s) => s.id)))}
-                          >
-                            {busy ? (
-                              <Loader2 className="spin" size={16} />
-                            ) : (
-                              <CirclePlay size={17} />
-                            )}
-                            Generate all clips
-                          </button>
-                        </div>
+                        <button
+                          className="btn primary"
+                          disabled={!scenes.length || dirty}
+                          onClick={() => setTab("generate")}
+                        >
+                          Continue to Generate & Select <ArrowRight size={16} />
+                        </button>
                       </div>
                     </>
                   )}
-                  {tab === "review" && (
+                  {tab === "generate" && (
                     <>
-                      <div className="section-heading">
-                        <div>
-                          <h2>A little perspective on every take.</h2>
-                          <p className="muted">
-                            Review, leave feedback, and decide what comes next.
-                          </p>
-                        </div>
-                        <button className="btn" onClick={() => setTab("storyboard")}>
-                          <ArrowLeft size={15} />
-                          Edit prompts
+                      {dirty && (
+                        <p className="draft-note">
+                          Save your Plan edits before generating or selecting a version.
+                        </p>
+                      )}
+                      <div className="panel-actions">
+                        <button
+                          className="btn primary"
+                          disabled={
+                            busy ||
+                            dirty ||
+                            setupMissing ||
+                            total !== project.brief.duration ||
+                            !missingSceneIds.length ||
+                            project.scenes.some((scene) => !!sceneIssue(scene))
+                          }
+                          onClick={() => run(() => generateClips(missingSceneIds))}
+                        >
+                          Generate missing scenes
                         </button>
                       </div>
-                      <TaskList
-                        tasks={project.tasks}
+                      {config.developmentTools && config.videoMode === "mock" && (
+                        <details className="dev-controls">
+                          <summary>Development controls</summary>
+                          <label>
+                            Mock scenario
+                            <select
+                              aria-label="Mock scenario"
+                              value={scenario}
+                              onChange={(event) => setScenario(event.target.value)}
+                            >
+                              <option value="success">Success fixture</option>
+                              <option value="fail">Simulate failure</option>
+                            </select>
+                          </label>
+                        </details>
+                      )}
+                      <GenerateSelect
+                        project={project}
                         busy={busy}
+                        disabled={dirty || setupMissing}
+                        issue={sceneIssue}
+                        onPlan={() => setTab("plan")}
+                        onPreview={() => setTab("preview")}
+                        onGenerate={(id) => run(() => generateClips([id]))}
+                        onSelect={(sceneId, taskId) =>
+                          run(async () => {
+                            ensureSaved();
+                            await api(`projects/${project.id}/scenes/${sceneId}/select`, "PUT", {
+                              revision: project.revision,
+                              taskId,
+                            });
+                            await reload(false);
+                          }, "Version selected for your first cut.")
+                        }
                         onRetry={(task) =>
                           run(async () => {
                             const acceptDuplicateRisk =
@@ -1190,6 +1175,26 @@ export default function Studio() {
                         }
                       />
                     </>
+                  )}
+                  {tab === "preview" && (
+                    <FirstCutPreview
+                      project={project}
+                      busy={busy}
+                      dirty={dirty}
+                      onGenerate={() => setTab("generate")}
+                      onBuild={() =>
+                        run(async () => {
+                          ensureSaved();
+                          try {
+                            await api(`projects/${project.id}/first-cut`, "POST", {
+                              revision: project.revision,
+                            });
+                          } finally {
+                            await reload(false);
+                          }
+                        }, "First cut ready.")
+                      }
+                    />
                   )}
                 </>
               )}
@@ -1287,6 +1292,7 @@ function DeleteProjectDialog({
     return () => element?.close();
   }, []);
   const active = project.tasks.filter((t) => ["pending", "processing"].includes(t.status)).length;
+  const building = project.output?.status === "processing";
   return (
     <dialog
       ref={dialog}
@@ -1309,14 +1315,19 @@ function DeleteProjectDialog({
         {project.tasks.filter((t) => t.review).length} reviews
       </p>
       <p>
-        The brief, shared visual profile and project events will also be removed. Unsaved edits will
-        be discarded. Export the project first if you need a copy.
+        The brief, creative direction, project events, first cuts and cached clips will also be
+        removed. Unsaved edits will be discarded. Export the project first if you need a copy.
       </p>
       <p>Deleting local records does not cancel provider jobs or refund generation charges.</p>
       {active > 0 && (
         <p className="message warning" role="status">
           {active} generation tasks are still active. Wait for completion, then check their status
           here before deleting.
+        </p>
+      )}
+      {building && (
+        <p className="message warning" role="status">
+          A first cut is still building. Wait for completion, then check its status before deleting.
         </p>
       )}
       {error && (
@@ -1328,12 +1339,16 @@ function DeleteProjectDialog({
         <button className="btn" disabled={busy} onClick={onCancel}>
           Cancel
         </button>
-        {active > 0 && (
+        {(active > 0 || building) && (
           <button className="btn" disabled={busy} onClick={onRefresh}>
             Check task status
           </button>
         )}
-        <button className="btn danger" disabled={busy || active > 0} onClick={onConfirm}>
+        <button
+          className="btn danger"
+          disabled={busy || active > 0 || building}
+          onClick={onConfirm}
+        >
           {busy ? <Loader2 size={15} className="spin" /> : <Trash2 size={15} />} Delete permanently
         </button>
       </div>
@@ -1406,7 +1421,7 @@ function BriefForm({
         </label>
       ))}
       <label>
-        Storyboard Duration <span className="required">*</span>
+        Target duration <span className="required">*</span>
         <select
           value={brief.duration}
           onChange={(e) => setBrief({ ...brief, duration: Number(e.target.value) as 15 | 30 })}
@@ -1414,7 +1429,9 @@ function BriefForm({
           <option value={15}>15 seconds · 3 scenes by default</option>
           <option value={30}>30 seconds · 5 scenes by default</option>
         </select>
-        <span className="field-help">Planning duration. Clips are not automatically stitched.</span>
+        <span className="field-help">
+          Planning target. The first cut uses actual clip lengths, so its duration may vary.
+        </span>
       </label>
       <label>
         Aspect Ratio <span className="required">*</span>

@@ -11,7 +11,11 @@ test("project deletion confirms scope, blocks active jobs and removes tasks from
   const { data: project } = await created.json();
   await page.goto(`/projects/${project.id}`);
   await page.getByRole("button", { name: "Generate storyboard", exact: true }).click();
-  await page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }).click();
+  await page.getByRole("button", { name: /02\s*Generate & Select/ }).click();
+  await page
+    .getByTestId("generate-scene-0")
+    .getByRole("button", { name: "Generate scene", exact: true })
+    .click();
   await expect(page.getByTestId("task-pending")).toBeVisible();
   await page.getByRole("button", { name: "Delete project", exact: true }).click();
   const dialog = page.getByRole("alertdialog", { name: "Delete project?" });
@@ -26,6 +30,7 @@ test("project deletion confirms scope, blocks active jobs and removes tasks from
   expect(rejected.status()).toBe(409);
   expect((await rejected.json()).error.code).toBe("ACTIVE_TASKS");
   await expect(page.getByTestId("task-completed")).toBeVisible({ timeout: 20000 });
+  await page.getByText("Notes & details", { exact: true }).click();
   await page.getByRole("button", { name: "Rate 4 stars", exact: true }).click();
   await page.getByRole("button", { name: "Save review", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Review saved");
@@ -73,17 +78,17 @@ test("brief → storyboard → shared profile → editing → mock video → rev
   await page.goto("/projects/new");
   await page.getByRole("button", { name: "Create project", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "highlighted brief" })).toBeVisible();
-  await page.getByRole("button", { name: "Use Morning Brew example" }).click();
+  await page.getByRole("button", { name: "Fill example brief" }).click();
   await page.getByRole("button", { name: "Create project", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Morning Brew campaign" })).toBeVisible();
   await page.getByRole("button", { name: "Generate storyboard", exact: true }).click();
   await expect(page.getByTestId("scene-0")).toBeVisible();
-  await expect(page.getByText("15 / 15s planned")).toBeVisible();
+  await expect(page.getByText("15 / 15s planned", { exact: true })).toBeVisible();
   await page
     .getByLabel("Character Identity", { exact: true })
     .fill("Same person, short dark hair, blue jacket");
-  await page.getByRole("button", { name: /Save profile/ }).click();
-  await expect(page.getByRole("status")).toContainText("Visual profile saved");
+  await page.getByRole("button", { name: /Save direction/ }).click();
+  await expect(page.getByRole("status")).toContainText("Creative direction saved");
   await page.getByLabel("Scene 1 title", { exact: true }).fill("My opening moment");
   await page.getByRole("button", { name: /Save scenes/ }).click();
   await expect(page.getByRole("status")).toContainText("Storyboard saved");
@@ -93,15 +98,19 @@ test("brief → storyboard → shared profile → editing → mock video → rev
     "Same person, short dark hair, blue jacket",
   );
   await page.getByTestId("scene-0").getByRole("button", { name: "Rewrite" }).click();
-  await expect(page.getByRole("status")).toContainText("Scene regenerated");
+  await expect(page.getByRole("status")).toContainText("Scene rewritten");
   await page.screenshot({ path: "docs/images/storyboard.png", fullPage: true });
-  await page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }).click();
+  await page.getByRole("button", { name: /02\s*Generate & Select/ }).click();
+  await page
+    .getByTestId("generate-scene-0")
+    .getByRole("button", { name: "Generate scene", exact: true })
+    .click();
   await expect(page.getByTestId("task-pending")).toBeVisible();
   await expect(page.getByTestId("task-processing")).toBeVisible({ timeout: 15000 });
   await page.reload();
-  await page.getByRole("button", { name: /Generate & review/ }).click();
+  await page.getByRole("button", { name: /02\s*Generate & Select/ }).click();
   await expect(page.getByTestId("task-completed")).toBeVisible({ timeout: 20000 });
-  await expect(page.getByText("MOCK / DEMO FOOTAGE")).toBeVisible();
+  await expect(page.getByText("Illustrative test footage; no model was called.")).toBeVisible();
   const video = page.locator("video");
   await expect
     .poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState))
@@ -114,6 +123,7 @@ test("brief → storyboard → shared profile → editing → mock video → rev
     .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
     .toBeGreaterThan(0.2);
   await video.evaluate((el: HTMLVideoElement) => el.pause());
+  await page.getByText("Notes & details", { exact: true }).click();
   await page.getByRole("button", { name: "Rate 4 stars", exact: true }).click();
   await page
     .getByLabel("Feedback", { exact: true })
@@ -121,7 +131,7 @@ test("brief → storyboard → shared profile → editing → mock video → rev
   await page.getByRole("button", { name: "Save review", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("Review saved");
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Export project", exact: true }).click();
+  await page.getByRole("button", { name: "Export project data", exact: true }).click();
   expect((await downloadPromise).suggestedFilename()).toContain("project.json");
   await page.screenshot({ path: "docs/images/review.png", fullPage: true });
 });
@@ -137,7 +147,7 @@ test("analytics separates modes, rejects cross-origin writes and fits a mobile v
   expect(rejected.status()).toBe(403);
   await page.goto("/analytics");
   await expect(page.getByTestId("success-rate")).toBeVisible();
-  await expect(page.getByText("Mock / Demo data only.", { exact: false })).toBeVisible();
+  await expect(page.getByText("Mock execution only.", { exact: false })).toBeVisible();
   await page.getByLabel("Analytics provider mode", { exact: true }).selectOption("live");
   await expect(page.getByTestId("success-rate")).toHaveText("—");
   await page.getByLabel("Analytics data source", { exact: true }).selectOption("demo");
@@ -150,15 +160,22 @@ test("analytics separates modes, rejects cross-origin writes and fits a mobile v
 });
 
 test("failed generation is preserved and retry succeeds", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("button", { name: /Try the coffee campaign/ }).click();
+  await page.goto("/projects/new");
+  await page.getByRole("button", { name: "Fill example brief" }).click();
+  await page.getByRole("button", { name: "Create project", exact: true }).click();
   await page.getByRole("button", { name: "Generate storyboard", exact: true }).click();
   await expect(page.getByTestId("scene-0")).toBeVisible();
+  await page.getByRole("button", { name: /02\s*Generate & Select/ }).click();
+  await page.getByText("Development controls", { exact: true }).click();
   await page.getByLabel("Mock scenario", { exact: true }).selectOption("fail");
-  await page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }).click();
+  await page
+    .getByTestId("generate-scene-0")
+    .getByRole("button", { name: "Generate scene", exact: true })
+    .click();
   await expect(page.getByTestId("task-failed")).toBeVisible({ timeout: 20000 });
   await page.getByRole("button", { name: "Retry generation", exact: true }).click();
   await expect(page.getByTestId("task-completed")).toBeVisible({ timeout: 20000 });
+  await page.getByText("Other versions (1)", { exact: true }).click();
   await expect(page.getByTestId("task-failed")).toBeVisible();
 });
 
@@ -197,39 +214,168 @@ test("simulated Wan config shows limits and blocks incompatible clips before sub
   const { data } = await result.json();
   await page.goto(`/projects/${data.id}`);
   await page.getByRole("button", { name: "Generate storyboard", exact: true }).click();
-  await expect(page.getByText("30 / 30s planned")).toBeVisible();
+  await expect(page.getByText("30 / 30s planned", { exact: true })).toBeVisible();
   await expect(page.getByText("wan2.2 requires 5s per clip.", { exact: false })).toHaveCount(5);
+  await page.getByRole("button", { name: /02\s*Generate & Select/ }).click();
   await expect(
-    page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }),
+    page
+      .getByTestId("generate-scene-0")
+      .getByRole("button", { name: "Generate scene", exact: true }),
   ).toBeDisabled();
   await expect(
-    page.getByRole("button", { name: "Generate all clips", exact: true }),
+    page.getByRole("button", { name: "Generate missing scenes", exact: true }),
   ).toBeDisabled();
   model = "wan2.6";
   await page.reload();
-  await expect(page.getByText("Wan 2.6 · 720p clips", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: /02\s*Generate & Select/ }).click();
   await expect(
-    page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }),
+    page
+      .getByTestId("generate-scene-0")
+      .getByRole("button", { name: "Generate scene", exact: true }),
   ).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Generate all clips", exact: true })).toBeEnabled();
-  await page.getByLabel("Character Identity", { exact: true }).fill("x".repeat(1200));
-  await page.getByRole("button", { name: /Save profile/ }).click();
-  await expect(page.getByRole("status")).toContainText("Visual profile saved");
-  await expect(page.getByText("Shorten the scene prompt", { exact: false })).toHaveCount(5);
   await expect(
-    page.getByRole("button", { name: "Generate all clips", exact: true }),
+    page.getByRole("button", { name: "Generate missing scenes", exact: true }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "01 Plan", exact: true }).click();
+  await page.getByLabel("Character Identity", { exact: true }).fill("x".repeat(1200));
+  await page.getByRole("button", { name: /Save direction/ }).click();
+  await expect(page.getByRole("status")).toContainText("Creative direction saved");
+  await expect(page.getByText("Shorten the scene prompt", { exact: false })).toHaveCount(5);
+  await page.getByRole("button", { name: /02\s*Generate & Select/ }).click();
+  await expect(
+    page.getByRole("button", { name: "Generate missing scenes", exact: true }),
   ).toBeDisabled();
   model = "wan3.0";
   await page.reload();
-  await expect(page.getByText("Wan 3.0 · 480p clips", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: /02\s*Generate & Select/ }).click();
   await expect(
-    page.getByTestId("scene-0").getByRole("button", { name: "Generate clip" }),
+    page
+      .getByTestId("generate-scene-0")
+      .getByRole("button", { name: "Generate scene", exact: true }),
   ).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Generate all clips", exact: true })).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Generate missing scenes", exact: true }),
+  ).toBeEnabled();
   configured = false;
   await page.reload();
   await expect(
     page.getByRole("alert").filter({ hasText: "API setup required: DASHSCOPE_API_KEY" }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Regenerate board", exact: true })).toBeDisabled();
+});
+
+test("selects versions → assembles first cut → exports MP4 → restores selection", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(90000);
+  const project = (
+    await (
+      await request.post("/api/projects", {
+        data: { brief: { ...sampleBrief, brandName: "First Cut workflow" } },
+      })
+    ).json()
+  ).data;
+  await page.goto(`/projects/${project.id}`);
+  await page.getByRole("button", { name: "Generate storyboard", exact: true }).click();
+  await page.getByRole("button", { name: /02\s*Generate & Select/ }).click();
+  await page.getByRole("button", { name: "Generate missing scenes", exact: true }).click();
+  await expect(page.getByTestId("selected-version")).toHaveCount(3, { timeout: 25000 });
+  const scene = page.getByTestId("generate-scene-0");
+  const initial = (await (await request.get(`/api/projects/${project.id}`)).json()).data;
+  await scene.getByRole("button", { name: "Generate another", exact: true }).click();
+  await expect(scene.getByText("A new version is ready.", { exact: false })).toBeVisible({
+    timeout: 25000,
+  });
+  const unchanged = (await (await request.get(`/api/projects/${project.id}`)).json()).data;
+  expect(unchanged.scenes[0].selectedGenerationTaskId).toBe(
+    initial.scenes[0].selectedGenerationTaskId,
+  );
+  await scene.getByText("Other versions (1)", { exact: true }).click();
+  await scene.getByRole("button", { name: "Use this version", exact: true }).click();
+  const changed = (await (await request.get(`/api/projects/${project.id}`)).json()).data;
+  expect(changed.scenes[0].selectedGenerationTaskId).not.toBe(
+    initial.scenes[0].selectedGenerationTaskId,
+  );
+  await page.getByRole("button", { name: "03 Preview & Export", exact: true }).click();
+  await page.getByRole("button", { name: "Build first cut", exact: true }).click();
+  const video = page.getByLabel("First cut preview", { exact: true });
+  await expect(video).toBeVisible({ timeout: 30000 });
+  await expect
+    .poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState))
+    .toBeGreaterThanOrEqual(1);
+  await expect(
+    page.getByText("Target 15s · 3 / 3 selected · First cut 9.0s", { exact: true }),
+  ).toBeVisible();
+  await video.evaluate(async (el: HTMLVideoElement) => {
+    el.muted = true;
+    await el.play();
+  });
+  await expect
+    .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
+    .toBeGreaterThan(0.2);
+  await video.evaluate((el: HTMLVideoElement) => el.pause());
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Export MP4", exact: true }).click();
+  expect((await downloaded).suggestedFilename()).toContain("first-cut.mp4");
+  const current = (await (await request.get(`/api/projects/${project.id}`)).json()).data;
+  const media = await request.get(current.output.mediaUrl, { headers: { range: "bytes=0-31" } });
+  expect(media.status()).toBe(206);
+  expect((await media.body()).subarray(4, 8).toString()).toBe("ftyp");
+  await page.reload();
+  await expect(page.getByLabel("First cut preview", { exact: true })).toBeVisible();
+  expect(
+    (await (await request.get(`/api/projects/${project.id}`)).json()).data.scenes[0]
+      .selectedGenerationTaskId,
+  ).toBe(changed.scenes[0].selectedGenerationTaskId);
+  await page.screenshot({ path: "docs/images/first-cut.png", fullPage: true });
+  await page.getByRole("button", { name: "01 Plan", exact: true }).click();
+  await page.getByRole("button", { name: "Move scene 1 down", exact: true }).click();
+  await page.getByRole("button", { name: /Save scenes/ }).click();
+  await page.getByRole("button", { name: "03 Preview & Export", exact: true }).click();
+  await expect(page.getByText("Your selection or plan changed.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Export MP4", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Rebuild first cut", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Export MP4", exact: true })).toBeVisible({
+    timeout: 30000,
+  });
+});
+
+test("prebuilt Example opens a real completed cut without generation calls", async ({
+  page,
+  request,
+}) => {
+  const submitted: string[] = [];
+  page.on("request", (r) => {
+    if (
+      r.method() === "POST" &&
+      /\/tasks$|\/storyboard$|\/first-cut$/.test(new URL(r.url()).pathname)
+    )
+      submitted.push(r.url());
+  });
+  await page.goto("/");
+  const example = page.getByTestId("project-card-example-morning-brew-v1");
+  await expect(example).toContainText("Example");
+  await expect(example).toContainText("Draft ready");
+  await example.getByRole("link").click();
+  await expect(page.getByLabel("First cut preview", { exact: true })).toBeVisible();
+  const data = (await (await request.get("/api/projects/example-morning-brew-v1")).json()).data;
+  expect(data.output.mode).toBe("live");
+  expect(data.tasks).toHaveLength(3);
+  expect(data.output.duration).toBeCloseTo(15, 0);
+  const video = page.getByLabel("First cut preview", { exact: true });
+  await expect
+    .poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState))
+    .toBeGreaterThanOrEqual(1);
+  await video.evaluate(async (el: HTMLVideoElement) => {
+    el.muted = true;
+    await el.play();
+  });
+  await expect
+    .poll(() => video.evaluate((el: HTMLVideoElement) => el.currentTime))
+    .toBeGreaterThan(0.2);
+  expect(submitted).toEqual([]);
+  await page.screenshot({ path: "docs/images/example.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(391);
 });

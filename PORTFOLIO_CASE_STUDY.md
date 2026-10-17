@@ -1,55 +1,48 @@
-# AI Video Creative Studio — Frame
+# Frame — From a Marketing Brief to a Reviewable First Cut
 
-## Problem
+## Problem and hypothesis
 
-Marketing briefs describe an audience and an objective, while video generation requires concrete scene and camera instructions. I explored the hypothesis that a structured workspace could help organize this translation and make iterations easier to trace. I have not validated demand through user interviews.
+A marketing brief describes an audience and an objective; video models require concrete shot instructions. I explored whether a project workspace could help turn a brief into a reviewable draft and make weak shots easier to iterate. Demand, usability and time savings have not yet been validated with external users.
 
-## Product Vision
+**Proposed job to be done:** When I have a short-form marketing brief, I want to turn it into a first-cut video so I can evaluate the overall concept and selectively iterate weak shots without regenerating the whole project.
 
-Help a marketer move from a brief to an editable storyboard, shared visual instructions, individual clip-generation attempts, and review feedback in one local-first application.
+## Discovery and product decisions
 
-## Target Users
+Lightweight official-source research covered BACH, Runway and Adobe Firefly. Runway already offers workflows and references, and Firefly offers shot/reference controls. I did not frame these capabilities as missing from competitors. Frame's hypothesis is about marketing workflow organization and traceable creative choices, not superior generation quality or a technical moat.
 
-Marketing specialists, social content creators, small-brand owners, and agency team members who need a focused planning workflow. This is a chosen initial audience, not a validated customer segment.
+During internal use, the builder found that Storyboard and Visual Consistency felt repetitive, while independent generation tasks did not add up to a project result. This feedback was not a user interview. I changed the completion unit from a successful task to a selected scene version, then an assembled first cut.
 
-## My Role
+## Scope and workflow
 
-Product framing, MVP prioritization, interaction design, and full-stack implementation with Codex-assisted development. I defined the data model, provider boundaries, event definitions, and an executable usability-testing plan. Automated tests are distinct from research with external participants.
+**Projects → Plan → Generate & Select → Preview & Export.**
 
-## MVP Scope
+Plan brings the brief, editable storyboard and four-field Creative Direction together. Shared instructions are prompt guidance for future generations; they do not guarantee cross-shot identity. Generate & Select centers each scene's chosen version, with attempts, retries and optional ratings in details. The first success is selected automatically; later results never overwrite an existing choice.
 
-A working Next.js application with persisted briefs, editable scenes, a four-field Visual Consistency Profile, asynchronous Mock video tasks, retry history, ratings, feedback, JSON export, and a small analytics dashboard. Default storyboards use labeled templates; default videos are fixed, watermarked demonstration assets. The application does not assemble a finished advertisement.
+Once all scenes have a selection, local FFmpeg assembles them in storyboard order into one downloadable MP4. Each output stores its selection snapshot; changed order or choices require a rebuild. Target and actual durations are shown separately. This is a first cut with hard cuts and original clip sound, without timeline editing, transitions, captions, voice-over or music mixing.
 
-## Product Decisions
+## Implementation
 
-I prioritized the complete no-key workflow before real API adapters and analytics. Runway already offers references and workflows, and Firefly offers camera and reference controls; my differentiation hypothesis concerns a marketing-oriented planning and review experience, not a claim that competitors lack those capabilities. Shared visual instructions are prompt constraints, not a technical guarantee of cross-scene consistency.
+Next.js, React, TypeScript, Tailwind CSS, Prisma, SQLite and Zod. Provider adapters separate storyboard creation from asynchronous video generation. Revision checks, idempotency keys, immutable prompt snapshots, persistent retry history and local media caching make the workflow recoverable. Mock providers remain development infrastructure; execution mode and Example provenance are separate internal dimensions. Activity and product analytics are secondary tools.
 
-## Technical Implementation
+The runnable Example contains a Qwen 3.8 Flash storyboard and three real five-second Wan 3.0 / 480P clips, plus a saved approximately 15-second first cut. Opening it makes no model requests. One clip already existed; two further clips were generated under the user's explicit maximum of two clips and ¥3 original-price estimate. Billing was not independently audited. Other provider implementations retain simulated contract coverage rather than claimed live verification.
 
-Next.js, React, TypeScript, Tailwind CSS, Prisma, SQLite, and Zod. Provider interfaces separate storyboard creation from video generation. Tasks preserve the final prompt and profile version, while revision checks protect newer edits. Mock task progression is derived from database timestamps so refreshes and process restarts do not erase its state. Live adapters target Alibaba Cloud Qwen and Wan 2.2/2.6/3.0, OpenAI Structured Outputs, and the historical BACH v1 text-to-video contract. One real workflow was verified with Qwen 3.8 Flash and a single five-second Wan 3.0 clip; the other adapters have protocol tests, not verified account access. Qwen was added in response to the builder's payment-access and cost constraints, with JSON output revalidated on the server; this does not establish comparative model quality.
+![Completed Example First Cut](docs/images/example.png)
 
-## Challenges
+## Evaluation and limits
 
-I addressed invalid structured output, duration budgeting, duplicate submissions, ambiguous provider timeouts, retry history, and analytics denominators. Browser testing exposed an Origin/Host mismatch in the local server path, which was corrected. BACH's old documentation now redirects to a different Pro protocol, so I kept the legacy adapter separate and documented the availability uncertainty.
+Automated coverage includes parsing, persistence, task progression, failure/retry, capability limits, selection ownership, preservation of existing choices, stale output detection, actual FFmpeg assembly, byte-range media responses, playback and MP4 download. Exact executed results are recorded in TEST_RESULTS.md; protocol simulations are distinguished from real calls.
 
-## Evaluation
+The real Example proves that this specific three-shot path can be assembled and reviewed. It does not establish representative model quality, character consistency, market demand or deployment readiness. SQLite and media must be backed up together; uncached provider links may expire. Original shot audio may change abruptly across cuts.
 
-The core success and failure/retry browser workflows were run successfully before adding live adapters. The latest unit/contract suite passed 65 tests, covering parsing, persistence, state progression, provider contracts, access protection, and analytics. Five original browser scenarios and a separate extension-hydration regression passed; the Wan configuration scenario was rerun after adding 3.0 support. Exact command results and the separate production restart checks are recorded in TEST_RESULTS.md.
+## Next validation
 
-A separate real API smoke run generated three storyboard scenes with Qwen 3.8 Flash, saved shared instructions and a scene edit, submitted one five-second Wan 3.0 / 480P clip, observed completion, verified playback in Chrome, saved a technical review, and exported the project. The initial structured-output failure led to more specific validation feedback for the one allowed repair request. This run used a Sample project; its review is labeled as a technical check, not end-user research. Account quota and charges were not independently audited. Other protocol tests remain simulated. One successful clip does not establish representative quality, cross-scene consistency, deployment readiness, or business impact. No external user-study findings are claimed.
-
-![Real Wan 3.0 clip playback and technical review, in a Sample project](docs/images/live-review.png)
-
-## Future Improvements
-
-Conduct observed task testing with target users; measure whether shared instructions are understood and useful; then evaluate reference-image support, additional providers, and clip assembly. Evaluate more real samples and failure cases, and separately verify legacy API availability. Deploy the password-protected application with persistent storage and test recovery.
+P0 closes the brief-to-first-cut task. Before adding more AI features, observe target users attempting to understand Creative Direction, choose versions, build a cut and revise a weak shot. Measure task completion and collect confusion points. No external study results, growth or time-saving percentages are claimed.
 
 ## CV-ready descriptions
 
-- Built a local-first AI video creative workspace with Next.js, TypeScript, Prisma, and SQLite, connecting marketing briefs, editable storyboards, shared visual instructions, and review feedback.
-- Designed provider adapters with schema validation, capability checks, immutable generation snapshots, and persistent asynchronous task and retry history.
-- Verified a real Qwen 3.8 Flash → Wan 3.0 workflow through five-second clip generation, browser playback, review persistence, and JSON export, alongside simulated contract coverage.
-- Defined source-separated product metrics and implemented terminal-task success rates, brief-to-storyboard conversion, and latest-result ratings without pooling Mock and Live data.
-- Used Codex-assisted development to translate product hypotheses into a working MVP, automated workflow tests, documented decisions, and an executable usability-testing plan.
+- Built a local-first brief-to-first-cut AI video workspace with Next.js, TypeScript, Prisma and SQLite, connecting editable plans, scene-version selection and MP4 export.
+- Translated internal usability feedback into a three-stage project workflow, merging duplicate planning steps and introducing explicit creative selection with immutable output snapshots.
+- Verified a Qwen 3.8 Flash → three Wan 3.0 clips → local FFmpeg first-cut workflow, alongside automated persistence, retry, provider-contract and browser tests.
+- Designed prompt guidance, provider capability validation, idempotent submissions and recoverable media handling while documenting model limitations and unvalidated product hypotheses.
 
-No user growth, revenue, time savings, public deployment, guaranteed consistency, or representative model-quality benchmark is implied.
+Developed with Codex assistance. No public deployment, external user research, revenue, guaranteed consistency or representative quality benchmark is implied.

@@ -16,6 +16,8 @@ import {
 } from "./domain";
 import { storyboardProvider, videoProvider } from "./providers";
 import { validateCapabilities } from "./providers/types";
+import { projectProgress, selectionKey, selectionSnapshot } from "./project-state";
+import { removeProjectMedia } from "./media";
 
 const json = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value));
 type Tx = Prisma.TransactionClient;
@@ -43,21 +45,78 @@ async function event(
     },
   });
 }
-export async function getProject(db: PrismaClient, id: string) {
-  const p = await db.project.findUnique({
-    where: { id },
-    include: {
-      scenes: { orderBy: { position: "asc" } },
-      tasks: { orderBy: { createdAt: "desc" }, include: { review: true } },
-    },
-  });
-  if (!p) throw new AppError("NOT_FOUND", "Project not found.", 404);
+const projectInclude = {
+  scenes: { orderBy: { position: "asc" as const } },
+  tasks: { orderBy: { createdAt: "desc" as const }, include: { review: true } },
+  outputs: { orderBy: { updatedAt: "desc" as const } },
+};
+function projectView(p: Prisma.ProjectGetPayload<{ include: typeof projectInclude }>) {
+  const brief = briefSchema.parse(p.brief);
+  const scenes = p.scenes.map((s) => ({
+    ...sceneSchema.parse(s.content),
+    id: s.id,
+    selectedGenerationTaskId: s.selectedGenerationTaskId,
+  }));
+  const snapshot = selectionSnapshot(brief, scenes, p.tasks);
+  const key = snapshot && selectionKey(snapshot);
+  const output = p.outputs.find((output) => output.selectionKey === key) || p.outputs[0] || null;
+  const current = !!output && output.selectionKey === key;
+  const selectedCount = scenes.filter((scene) =>
+    p.tasks.some(
+      (task) =>
+        task.id === scene.selectedGenerationTaskId &&
+        task.status === "completed" &&
+        !!task.resultUrl,
+    ),
+  ).length;
+  const activeCount = p.tasks.filter((task) =>
+    ["pending", "processing"].includes(task.status),
+  ).length;
   return {
     ...p,
-    brief: briefSchema.parse(p.brief),
+    brief,
     profile: profileSchema.parse(p.profile),
-    scenes: p.scenes.map((s) => ({ ...sceneSchema.parse(s.content), id: s.id })),
+    scenes,
+    tasks: p.tasks.map((task) => ({
+      ...task,
+      previewUrl:
+        task.status === "completed" && task.resultUrl ? `/api/media/tasks/${task.id}` : null,
+    })),
+    output: output && {
+      ...output,
+      mediaUrl: output.status === "completed" ? `/api/media/outputs/${output.id}` : null,
+    },
+    outputIsCurrent: current,
+    progress: {
+      sceneCount: scenes.length,
+      selectedCount,
+      activeCount,
+      label: projectProgress(scenes.length, selectedCount, activeCount, output?.status, current),
+    },
+    _count: { scenes: scenes.length, tasks: p.tasks.length },
   };
+}
+export async function getProject(db: PrismaClient, id: string) {
+  await db.projectOutput.updateMany({
+    where: {
+      projectId: id,
+      status: "processing",
+      updatedAt: { lt: new Date(Date.now() - 15 * 60000) },
+    },
+    data: {
+      status: "failed",
+      errorMessage:
+        "The build was interrupted. Your selected clips are safe; rebuild the first cut.",
+    },
+  });
+  const p = await db.project.findUnique({ where: { id }, include: projectInclude });
+  if (!p) throw new AppError("NOT_FOUND", "Project not found.", 404);
+  return projectView(p);
+}
+export async function listProjects(db: PrismaClient) {
+  return (
+    await db.project.findMany({ orderBy: { updatedAt: "desc" }, include: projectInclude })
+  ).map(projectView);
 }
 export async function createProject(db: PrismaClient, input: unknown, context: Context) {
   const { brief, origin } = z
@@ -78,7 +137,7 @@ export async function createProject(db: PrismaClient, input: unknown, context: C
 }
 export async function deleteProject(db: PrismaClient, id: string, input: unknown) {
   const { revision } = z.object({ revision: revisionSchema }).parse(input);
-  return db.$transaction(async (tx) => {
+  const deleted = await db.$transaction(async (tx) => {
     const project = await tx.project.findUnique({
       where: { id },
       select: { id: true, revision: true },
@@ -97,6 +156,12 @@ export async function deleteProject(db: PrismaClient, id: string, input: unknown
         "This project still has active generation tasks. Wait for them to finish and refresh their status before deleting.",
         409,
       );
+    if (await tx.projectOutput.count({ where: { projectId: id, status: "processing" } }))
+      throw new AppError(
+        "ACTIVE_TASKS",
+        "Wait for the first cut build to finish before deleting this project.",
+        409,
+      );
     const result = await tx.project.deleteMany({
       where: { id, revision, tasks: { none: active } },
     });
@@ -104,6 +169,59 @@ export async function deleteProject(db: PrismaClient, id: string, input: unknown
       throw new AppError("VERSION_CONFLICT", "Project changed. Reload before deleting.", 409);
     return { id, deleted: true };
   });
+  await removeProjectMedia(id);
+  return deleted;
+}
+
+export async function selectSceneVersion(
+  db: PrismaClient,
+  id: string,
+  sceneId: string,
+  input: unknown,
+) {
+  const { revision, taskId } = z
+    .object({ revision: revisionSchema, taskId: z.string().min(1) })
+    .parse(input);
+  await db.$transaction(async (tx) => {
+    const scene = await tx.scene.findFirst({ where: { id: sceneId, projectId: id } });
+    if (!scene) throw new AppError("NOT_FOUND", "Scene not found.", 404);
+    const task = await tx.generationTask.findFirst({
+      where: { id: taskId, projectId: id, sceneId, status: "completed", resultUrl: { not: null } },
+    });
+    if (!task?.resultUrl)
+      throw new AppError("INVALID_SELECTION", "Choose a completed version from this scene.", 422);
+    const changed = await tx.project.updateMany({
+      where: { id, revision },
+      data: { revision: { increment: 1 } },
+    });
+    if (!changed.count)
+      throw new AppError(
+        "VERSION_CONFLICT",
+        "Your project changed. Reload before selecting a version.",
+        409,
+      );
+    await tx.scene.update({ where: { id: sceneId }, data: { selectedGenerationTaskId: taskId } });
+  });
+  return getProject(db, id);
+}
+
+export async function duplicatePlan(db: PrismaClient, id: string, context: Context) {
+  const p = await getProject(db, id);
+  const copy = await createProject(db, { brief: p.brief, origin: "user" }, context);
+  await db.project.update({
+    where: { id: copy.id },
+    data: { name: `${p.name} — copy`.slice(0, 150), profile: json(p.profile) },
+  });
+  if (p.scenes.length)
+    await replaceScenes(
+      db,
+      copy.id,
+      0,
+      p.scenes.map((scene) => ({ content: sceneSchema.parse(scene) })),
+      context,
+      p.storyboardMode || undefined,
+    );
+  return getProject(db, copy.id);
 }
 export async function updateProject(
   db: PrismaClient,
@@ -461,6 +579,11 @@ export async function syncTask(db: PrismaClient, id: string, context: Context, n
         { taskId: id, code: update.errorCode },
         `terminal:${id}`,
       );
+    if (changed.count && update.status === "completed" && task.sceneId && update.resultUrl)
+      await tx.scene.updateMany({
+        where: { id: task.sceneId, projectId: task.projectId, selectedGenerationTaskId: null },
+        data: { selectedGenerationTaskId: task.id },
+      });
   });
   return db.generationTask.findUniqueOrThrow({ where: { id }, include: { review: true } });
 }
@@ -527,7 +650,7 @@ export async function exportProject(db: PrismaClient, id: string, context: Conte
     schemaVersion: 1,
     exportedAt: new Date().toISOString(),
     notice:
-      "Planning and individual clips only. Mock media is not model-generated. External video links may expire.",
+      "Project metadata, selected versions and first-cut snapshots. Download MP4 separately; JSON does not embed media. Illustrative test footage is not newly model-generated.",
     project: { ...p, scenes: p.scenes.map((scene, i) => ({ ...scene, sceneNumber: i + 1 })) },
   };
 }

@@ -30,7 +30,7 @@ test("extension-injected body attributes do not warn during hydration", async ({
   await expect(page.locator("body")).toHaveAttribute("monica-version", "9.0.23");
   await expect(page.getByRole("heading", { name: "Good ideas start here." })).toBeVisible();
   await page.locator("main").getByRole("link", { name: "New project", exact: true }).click();
-  await page.getByRole("button", { name: "Use Morning Brew example" }).click();
+  await page.getByRole("button", { name: "Fill example brief" }).click();
   await expect(page.getByLabel("Brand Name", { exact: false })).toHaveValue("Morning Brew");
   expect(hydrationErrors).toEqual([]);
 });

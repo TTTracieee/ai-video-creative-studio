@@ -36,8 +36,8 @@ export default function Analytics() {
       <div className="page-heading">
         <div>
           <span className="eyebrow">A LITTLE SIGNAL, A CLEARER NEXT STEP</span>
-          <h1>Learn from every iteration.</h1>
-          <p>Simple product signals. Honest about their source.</p>
+          <h1>Internal product analytics</h1>
+          <p>Diagnostic metrics for the builder; these are not campaign performance metrics.</p>
         </div>
         <BarChart3 size={29} color="#7f956c" />
       </div>
@@ -49,7 +49,7 @@ export default function Analytics() {
             value={mode}
             onChange={(e) => setMode(e.target.value)}
           >
-            <option value="mock">Mock / Demo</option>
+            <option value="mock">Mock execution</option>
             <option value="live">Live</option>
           </select>
         </label>
@@ -89,7 +89,7 @@ export default function Analytics() {
       </p>
       {mode === "mock" && (
         <div className="message warning" style={{ marginTop: 20 }}>
-          Mock / Demo data only. These metrics do not measure real model quality, speed, or market
+          Mock execution only. These metrics do not measure real model quality, speed, or market
           demand.
         </div>
       )}

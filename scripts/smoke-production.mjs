@@ -15,6 +15,7 @@ const environment = {
   ...process.env,
   DATABASE_URL: `file:${join(directory, "studio.db")}`,
   NODE_ENV: "production",
+  MEDIA_ROOT: join(directory, "media"),
   APP_PASSWORD: password,
   SESSION_SECRET: secret,
   STORYBOARD_PROVIDER: "mock",
@@ -57,6 +58,11 @@ try {
   execFileSync(process.execPath, ["scripts/migrate.mjs"], { env: environment, stdio: "ignore" });
   server = startServer();
   await waitReady();
+  assert.equal((await fetch(`${base}/api/media/outputs/permission-check?download=1`)).status, 401);
+  const protectedExample = await fetch(`${base}/examples/morning-brew/first-cut.mp4`, {
+    redirect: "manual",
+  });
+  assert.equal(protectedExample.status, 307);
   const page = await fetch(base, { redirect: "manual" });
   assert.equal(page.status, 307);
   assert.equal(new URL(page.headers.get("location"), base).pathname, "/login");
@@ -124,22 +130,49 @@ try {
   };
   const created = await api("projects", "POST", { brief, origin: "demo" });
   const board = await api(`projects/${created.id}/storyboard`, "POST", { revision: 0 });
-  const [task] = await api(`projects/${created.id}/tasks`, "POST", {
+  const tasks = await api(`projects/${created.id}/tasks`, "POST", {
     revision: board.revision,
-    sceneIds: [board.scenes[0].id],
+    sceneIds: board.scenes.map((scene) => scene.id),
     idempotencyKey: randomUUID(),
   });
+  const task = tasks[0];
   assert.equal(task.status, "pending");
   await stopServer();
   server = startServer();
   await waitReady();
   const recovered = await api(`projects/${created.id}`);
   assert.equal(recovered.scenes.length, 3);
-  assert.equal(recovered.tasks[0].id, task.id);
+  assert.ok(recovered.tasks.some((t) => t.id === task.id));
   await setTimeout(Math.max(0, new Date(task.createdAt).getTime() + 6500 - Date.now()));
   const completed = await api(`tasks/${task.id}/sync`, "POST", {});
   assert.equal(completed.status, "completed");
   assert.equal(completed.resultUrl, "/mock/portrait.mp4");
+  for (const another of tasks.slice(1)) await api(`tasks/${another.id}/sync`, "POST", {});
+  const chosen = await api(`projects/${created.id}`);
+  assert.equal(chosen.progress.selectedCount, 3);
+  const cut = await api(`projects/${created.id}/first-cut`, "POST", { revision: chosen.revision });
+  assert.equal(cut.status, "completed");
+  const mediaUrl = `${base}/api/media/outputs/${cut.id}?download=1`;
+  assert.equal((await fetch(mediaUrl)).status, 401);
+  const range = await fetch(mediaUrl, { headers: { cookie, range: "bytes=0-31" } });
+  assert.equal(range.status, 206);
+  assert.ok(range.headers.get("content-disposition").includes("first-cut.mp4"));
+  assert.equal(
+    Buffer.from(await range.arrayBuffer())
+      .subarray(4, 8)
+      .toString(),
+    "ftyp",
+  );
+  const head = await fetch(mediaUrl, { method: "HEAD", headers: { cookie } });
+  assert.equal(head.status, 200);
+  assert.ok(Number(head.headers.get("content-length")) > 32);
+  await stopServer();
+  server = startServer();
+  await waitReady();
+  const restoredCut = await api(`projects/${created.id}`);
+  assert.equal(restoredCut.output.id, cut.id);
+  assert.equal(restoredCut.outputIsCurrent, true);
+  assert.equal((await fetch(mediaUrl, { headers: { cookie, range: "bytes=0-31" } })).status, 206);
   const logout = await fetch(`${base}/api/auth`, {
     method: "POST",
     headers: { cookie, "Content-Type": "application/json" },
@@ -149,7 +182,7 @@ try {
   const cleared = logout.headers.get("set-cookie");
   assert.ok(/max-age=0/i.test(cleared) || /expires=Thu, 01 Jan 1970/i.test(cleared));
   console.log(
-    "PASS: production access protection, login, secure cookies, secret isolation, origin protection, process restart with project/task recovery, and logout (isolated database).",
+    "PASS: production access protection, login, secure cookies, secret isolation, origin protection, process restart with project/task/selection/output recovery, protected MP4 range/download/HEAD, and logout (isolated database).",
   );
 } finally {
   await stopServer();

@@ -8,76 +8,103 @@ datasource db {
 }
 
 model Project {
-  id               String   @id @default(cuid())
-  name             String
-  brief            Json
-  profile          Json
-  profileVersion   Int      @default(1)
-  revision         Int      @default(0)
-  origin           String   @default("user")
-  storyboardMode   String?
-  storyboardAt     DateTime?
-  briefUpdatedAt   DateTime @default(now())
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  scenes           Scene[]
-  tasks            GenerationTask[]
-  events           Event[]
+  id             String           @id @default(cuid())
+  name           String
+  brief          Json
+  profile        Json
+  profileVersion Int              @default(1)
+  revision       Int              @default(0)
+  origin         String           @default("user")
+  storyboardMode String?
+  storyboardAt   DateTime?
+  briefUpdatedAt DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  scenes         Scene[]
+  tasks          GenerationTask[]
+  events         Event[]
+  outputs        ProjectOutput[]
 }
 
 model Scene {
-  id         String @id @default(cuid())
-  projectId  String
-  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  position   Int
-  content    Json
-  tasks      GenerationTask[]
+  id                       String           @id @default(cuid())
+  projectId                String
+  project                  Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  position                 Int
+  content                  Json
+  tasks                    GenerationTask[] @relation("SceneAttempts")
+  selectedGenerationTaskId String?          @unique
+  selectedGenerationTask   GenerationTask?  @relation("SelectedGeneration", fields: [selectedGenerationTaskId], references: [id], onDelete: SetNull)
+
   @@index([projectId, position])
 }
 
 model GenerationTask {
-  id               String @id @default(cuid())
+  id               String    @id @default(cuid())
   projectId        String
-  project          Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   sceneId          String?
-  scene            Scene? @relation(fields: [sceneId], references: [id], onDelete: SetNull)
+  scene            Scene?    @relation("SceneAttempts", fields: [sceneId], references: [id], onDelete: SetNull)
+  selectedForScene Scene?    @relation("SelectedGeneration")
   snapshot         Json
   provider         String
   mode             String
-  status           String @default("pending")
+  status           String    @default("pending")
   providerTaskId   String?
-  scenario         String @default("success")
+  scenario         String    @default("success")
   retryOfId        String?
-  idempotencyKey   String @unique
-  createdAt        DateTime @default(now())
+  idempotencyKey   String    @unique
+  createdAt        DateTime  @default(now())
   startedAt        DateTime?
   completedAt      DateTime?
   errorCode        String?
   errorMessage     String?
   resultUrl        String?
+  localMediaPath   String?
   review           Review?
+
+  @@index([projectId, createdAt])
+}
+
+model ProjectOutput {
+  id           String    @id @default(cuid())
+  projectId    String
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  selectionKey String
+  snapshot     Json
+  mode         String
+  status       String    @default("processing")
+  mediaPath    String?
+  duration     Float?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  completedAt  DateTime?
+
+  @@unique([projectId, selectionKey])
   @@index([projectId, createdAt])
 }
 
 model Review {
-  id        String @id @default(cuid())
-  taskId    String @unique
+  id        String         @id @default(cuid())
+  taskId    String         @unique
   task      GenerationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
   rating    Int
   feedback  String
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime       @updatedAt
 }
 
 model Event {
-  id          String @id @default(cuid())
-  name        String
-  timestamp   DateTime @default(now())
-  sessionId   String
-  projectId   String
-  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  origin      String
-  mode        String
-  properties  Json
-  dedupKey    String @unique
+  id         String   @id @default(cuid())
+  name       String
+  timestamp  DateTime @default(now())
+  sessionId  String
+  projectId  String
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  origin     String
+  mode       String
+  properties Json
+  dedupKey   String   @unique
+
   @@index([name, timestamp])
 }

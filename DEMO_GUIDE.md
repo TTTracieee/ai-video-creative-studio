@@ -1,33 +1,33 @@
 # 三分钟 Demo 指南
 
-## 演示前
+演示前按 README 启动，确认 FFmpeg/ffprobe 可用。首页的 Morning Brew Example 已有三个真实 Wan 3.0 片段和约 15 秒 First Cut；打开、播放和下载不调用模型。不要在演示时为展示动画重新生成付费内容。
 
-运行 README 的本地启动步骤。默认使用 Mock，不需要 API Key。演示样例与真实用户数据分开；不要把自己的操作称作市场验证。
+## 0:00–0:30：任务和结果
 
-## 0:00–0:25：问题与假设
+“Frame is a brief-to-first-cut video workspace. It helps organize planning, scene choices and a reviewable draft. The value hypothesis still needs user testing.”
 
-“This is a marketing-oriented creative workspace. The hypothesis is that structured planning and shared visual instructions can make the process easier to manage. I have not validated that hypothesis with user interviews yet.”
+从 Projects 打开带 Example 标记的 Morning Brew。直接播放完整 First Cut，指出 Target 与实际时长；点击 Export MP4。这是顺序硬切的草稿，不是最终广告。
 
-点击 Overview 的 **Try the coffee campaign**。这是明确标注 Sample 的项目。
+## 0:30–1:15：Plan
 
-## 0:25–1:10：Brief 与分镜
+切到 Plan，展开 Creative brief，展示受众、目标、15 秒与 9:16。三个默认 5 秒镜头与 Creative Direction 在同一个页面。四项共享说明指导未来生成，不保证人物或包装一致性；修改不会重写已有片段。
 
-展示 Morning Brew 的受众、营销目标、15 秒和 9:16。点击 **Generate storyboard**，说明 Mock 使用模板，不调用模型。展示三个 5 秒镜头；15 秒是规划，不是自动合成视频。
+展开 Scene direction & final prompt，说明共享与镜头级说明如何组合。展示标题、时长、排序及保存。若修改 Example，应事先 Duplicate plan，复制规划不复制模型结果。
 
-## 1:10–1:45：共享说明与编辑
+## 1:15–2:00：Generate & Select
 
-在 **Visual Consistency Profile** 修改 Character Identity，点击 **Save profile**。展开镜头的最终 Prompt，展示共享说明如何自动组合。修改 Scene Title 或 Prompt，保存或 Rewrite 一个镜头。说明这是 Prompt 层面的指导，不保证模型输出一致性。
+展示 Scene 的 Selected for cut。Other versions 属于各 Scene，Notes & details 中保留 Provider、Prompt 快照与可选评分。
 
-## 1:45–2:25：异步任务与 Review
+说明首次成功自动选中；Generate another 不替换原选择，用户明确 Use this version 才影响初剪。不为演示额外发付费请求。可在隔离的双 Mock 测试项目演示此动作，明确说明是带水印开发素材。
 
-点击 **Generate clip**，展示 Pending → Processing → Completed；刷新后记录仍在。固定视频有 Mock 水印，不能当作 AI 生成结果。评分并提交反馈；用 Mock scenario 展示失败与重试，指出旧尝试被保留。
+## 2:00–2:35：Preview & Export
 
-## 2:25–3:00：数据与产品反思
+每个 Scene 选定后 Build first cut。修改选择或顺序后显示旧预览提示，Rebuild first cut 更新；合并不调用生成模型。实际时长来自源视频，Mock 测试视频三条约 9 秒，不能说成 15 秒模型输出。
 
-导出项目 JSON。展示 Analytics 的来源和模式筛选、终态成功率及评分。说明产品取舍：先固定工作流而非专业剪辑；下一步通过用户任务测试评估共享说明是否有用，再决定是否接入参考素材。
+展示选片序列和单一 MP4。硬切保留原音，没有转场、字幕、配乐或时间线编辑；跨镜头声音和视觉可能不连续。
 
-真实 Qwen/万相/OpenAI/BACH 调用、Railway 部署及外部用户测试是否完成，以 TEST_RESULTS.md 的实际记录为准，不在面试中推断已完成。
+## 2:35–3:00：产品判断与证据
 
-真实 API 演示采用 REAL_API_SETUP.md 的步骤。当前已用 Qwen 3.8 Flash + 万相 3.0 完成一次真实分镜、单个 5 秒片段播放、技术评审保存和导出验收；截图见 `docs/images/live-review.png`。该记录是技术检查，不是用户研究或模型质量结论。录屏前可预先生成一个真实片段，减少等待和额度消耗；不要把 Mock MP4 说成模型生成。
+解释迭代原因：内部亲自使用发现重复规划步骤与“只有 clips”的断点，因此新增选择和初剪，保留底层任务追踪。Workspace tools 内的 Activity / Internal analytics 是诊断工具，不是用户主任务。
 
-万相 3.0 / 480P 支持 15 秒三个 5 秒、30 秒五个 6 秒的逐镜头规划；本轮只真实生成一个 5 秒片段，30 秒全流程仍只做了模拟验证。旧 2.2 固定 5 秒；若显式使用 2.2，需要将 30 秒方案明确编辑为六个 5 秒镜头。
+说明工程测试与三镜头真实 Example 的验证边界。没有外部用户研究、效率提升或模型质量结论；下一步做观察式任务测试，而不是继续堆 AI 功能。命令与结果见 TEST_RESULTS.md。

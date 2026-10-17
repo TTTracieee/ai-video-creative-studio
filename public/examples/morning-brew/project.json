@@ -1,0 +1,210 @@
+{
+  "id": "example-morning-brew-v1",
+  "name": "Morning Brew campaign",
+  "brief": {
+    "brandName": "Morning Brew",
+    "productDescription": "Premium, small-batch coffee in a cream bag with an amber label.",
+    "targetAudience": "Young professionals",
+    "marketingObjective": "Brand awareness",
+    "creativeConcept": "A warm and cinematic coffee commercial showing a young professional enjoying coffee before starting work.",
+    "visualStyle": "Cinematic",
+    "duration": 15,
+    "aspectRatio": "9:16",
+    "targetPlatform": "Instagram Reels"
+  },
+  "profile": {
+    "characterIdentity": "One young professional, short dark hair, beige knit sweater. Keep the same appearance across scenes.",
+    "productAppearance": "Premium, small-batch coffee in a cream bag with an amber label.",
+    "brandElements": "Morning Brew; cream packaging, amber label, plain ceramic cup. Avoid inventing additional logos.",
+    "visualStyle": "Cinematic; warm amber highlights, natural textures, soft morning light."
+  },
+  "profileVersion": 2,
+  "storyboardMode": "live",
+  "createdAt": "2026-10-17T14:55:58.702Z",
+  "scenes": [
+    {
+      "id": "example-morning-brew-v1-scene-1",
+      "position": 0,
+      "content": {
+        "title": "Morning Light",
+        "duration": 5,
+        "visualDescription": "Soft morning light streams through sheer curtains into a modern apartment. A young professional with short dark hair and a beige knit sweater sits at a wooden table, looking out the window with a calm expression. The atmosphere is quiet and reflective.",
+        "subject": "Young professional in beige sweater sitting by window",
+        "consistencyNotes": "Dark hair, beige sweater, natural light",
+        "cameraMovement": "Slow push-in from medium shot to close-up on face",
+        "lighting": "Warm amber highlights, soft diffused morning sun",
+        "mood": "Serene, contemplative, inviting",
+        "prompt": "Cinematic 9:16 video of a young professional with short dark hair wearing a beige knit sweater sitting at a wooden table by a window with sheer curtains. Soft warm morning light illuminates their face. Slow camera push-in. High-quality, realistic, peaceful atmosphere."
+      },
+      "selectedGenerationTaskId": "example-morning-brew-v1-task-1"
+    },
+    {
+      "id": "example-morning-brew-v1-scene-2",
+      "position": 1,
+      "content": {
+        "title": "The Pour Ritual",
+        "duration": 5,
+        "visualDescription": "Close-up focus on hands pouring hot coffee from a premium cream bag with an amber label into a plain ceramic cup. Steam rises gently against the warm background light. The action is deliberate and slow, highlighting the quality of the product.",
+        "subject": "Hands pouring coffee from Morning Brew bag into ceramic cup",
+        "consistencyNotes": "Cream bag, amber label, ceramic cup",
+        "cameraMovement": "Static macro shot focusing on steam and liquid flow",
+        "lighting": "Backlit steam, warm amber glow on packaging",
+        "mood": "Sensory, rich, intimate",
+        "prompt": "Macro cinematic shot of hands pouring coffee from a cream-colored bag with an amber 'Morning Brew' label into a plain white ceramic cup. Visible rising steam backlit by warm morning light. Focus on texture and liquid movement. 9:16 aspect ratio."
+      },
+      "selectedGenerationTaskId": "example-morning-brew-v1-task-2"
+    },
+    {
+      "id": "example-morning-brew-v1-scene-3",
+      "position": 2,
+      "content": {
+        "title": "Brand Moment Sip",
+        "duration": 5,
+        "visualDescription": "The young professional takes a sip from the ceramic cup, smiling slightly as they look toward the camera. The Morning Brew logo appears subtly in the corner or overlay as the scene fades to black.",
+        "subject": "Young professional drinking coffee and smiling",
+        "consistencyNotes": "Beige sweater, dark hair, brand text",
+        "cameraMovement": "Medium shot holding steady then slight zoom out",
+        "lighting": "Consistent warm morning light, soft shadows",
+        "mood": "Content, satisfied, confident",
+        "prompt": "Cinematic shot of the same young professional in beige sweater taking a sip from a ceramic cup, smiling warmly at the camera. Warm lighting matches previous scenes. Text overlay 'Morning Brew' appears elegantly. Fade to black. 9:16 vertical format."
+      },
+      "selectedGenerationTaskId": "example-morning-brew-v1-task-3"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "example-morning-brew-v1-task-1",
+      "sceneId": "example-morning-brew-v1-scene-1",
+      "snapshot": {
+        "scene": {
+          "title": "Morning light — live check",
+          "duration": 5,
+          "visualDescription": "Soft morning light streams through sheer curtains into a modern apartment. A young professional with short dark hair and a beige knit sweater sits at a wooden table, looking out the window with a calm expression. The atmosphere is quiet and reflective.",
+          "subject": "Young professional in beige sweater sitting by window",
+          "consistencyNotes": "Dark hair, beige sweater, natural light",
+          "cameraMovement": "Slow push-in from medium shot to close-up on face",
+          "lighting": "Warm amber highlights, soft diffused morning sun",
+          "mood": "Serene, contemplative, inviting",
+          "prompt": "Cinematic 9:16 video of a young professional with short dark hair wearing a beige knit sweater sitting at a wooden table by a window with sheer curtains. Soft warm morning light illuminates their face. Slow camera push-in. High-quality, realistic, peaceful atmosphere."
+        },
+        "profile": {
+          "characterIdentity": "One young professional, short dark hair, beige knit sweater. Keep the same appearance across scenes.",
+          "productAppearance": "Premium, small-batch coffee in a cream bag with an amber label.",
+          "brandElements": "Morning Brew; cream packaging, amber label, plain ceramic cup. Avoid inventing additional logos.",
+          "visualStyle": "Cinematic; warm amber highlights, natural textures, soft morning light."
+        },
+        "profileVersion": 2,
+        "finalPrompt": "Cinematic 9:16 video of a young professional with short dark hair wearing a beige knit sweater sitting at a wooden table by a window with sheer curtains. Soft warm morning light illuminates their face. Slow camera push-in. High-quality, realistic, peaceful atmosphere.\n\nShared visual consistency instructions (guidance, not a guarantee):\nCharacter identity: One young professional, short dark hair, beige knit sweater. Keep the same appearance across scenes.\nProduct appearance: Premium, small-batch coffee in a cream bag with an amber label.\nBrand elements: Morning Brew; cream packaging, amber label, plain ceramic cup. Avoid inventing additional logos.\nVisual style: Cinematic; warm amber highlights, natural textures, soft morning light.\nScene consistency notes: Dark hair, beige sweater, natural light",
+        "aspectRatio": "9:16"
+      },
+      "provider": "wan3.0",
+      "mode": "live",
+      "status": "completed",
+      "resultUrl": "/examples/morning-brew/scene-1.mp4",
+      "localMediaPath": "/examples/morning-brew/scene-1.mp4",
+      "createdAt": "2026-10-17T14:58:50.267Z",
+      "startedAt": "2026-10-17T14:58:50.912Z",
+      "completedAt": "2026-10-17T14:59:50.910Z"
+    },
+    {
+      "id": "example-morning-brew-v1-task-2",
+      "sceneId": "example-morning-brew-v1-scene-2",
+      "snapshot": {
+        "scene": {
+          "title": "The Pour Ritual",
+          "duration": 5,
+          "visualDescription": "Close-up focus on hands pouring hot coffee from a premium cream bag with an amber label into a plain ceramic cup. Steam rises gently against the warm background light. The action is deliberate and slow, highlighting the quality of the product.",
+          "subject": "Hands pouring coffee from Morning Brew bag into ceramic cup",
+          "consistencyNotes": "Cream bag, amber label, ceramic cup",
+          "cameraMovement": "Static macro shot focusing on steam and liquid flow",
+          "lighting": "Backlit steam, warm amber glow on packaging",
+          "mood": "Sensory, rich, intimate",
+          "prompt": "Macro cinematic shot of hands pouring coffee from a cream-colored bag with an amber 'Morning Brew' label into a plain white ceramic cup. Visible rising steam backlit by warm morning light. Focus on texture and liquid movement. 9:16 aspect ratio."
+        },
+        "profile": {
+          "characterIdentity": "One young professional, short dark hair, beige knit sweater. Keep the same appearance across scenes.",
+          "productAppearance": "Premium, small-batch coffee in a cream bag with an amber label.",
+          "brandElements": "Morning Brew; cream packaging, amber label, plain ceramic cup. Avoid inventing additional logos.",
+          "visualStyle": "Cinematic; warm amber highlights, natural textures, soft morning light."
+        },
+        "profileVersion": 2,
+        "finalPrompt": "Macro cinematic shot of hands pouring coffee from a cream-colored bag with an amber 'Morning Brew' label into a plain white ceramic cup. Visible rising steam backlit by warm morning light. Focus on texture and liquid movement. 9:16 aspect ratio.\n\nShared visual consistency instructions (guidance, not a guarantee):\nCharacter identity: One young professional, short dark hair, beige knit sweater. Keep the same appearance across scenes.\nProduct appearance: Premium, small-batch coffee in a cream bag with an amber label.\nBrand elements: Morning Brew; cream packaging, amber label, plain ceramic cup. Avoid inventing additional logos.\nVisual style: Cinematic; warm amber highlights, natural textures, soft morning light.\nScene consistency notes: Cream bag, amber label, ceramic cup",
+        "aspectRatio": "9:16"
+      },
+      "provider": "wan3.0",
+      "mode": "live",
+      "status": "completed",
+      "resultUrl": "/examples/morning-brew/scene-2.mp4",
+      "localMediaPath": "/examples/morning-brew/scene-2.mp4",
+      "createdAt": "2026-10-17T15:45:47.092Z",
+      "startedAt": "2026-10-17T15:45:49.801Z",
+      "completedAt": "2026-10-17T15:46:53.156Z"
+    },
+    {
+      "id": "example-morning-brew-v1-task-3",
+      "sceneId": "example-morning-brew-v1-scene-3",
+      "snapshot": {
+        "scene": {
+          "title": "Brand Moment Sip",
+          "duration": 5,
+          "visualDescription": "The young professional takes a sip from the ceramic cup, smiling slightly as they look toward the camera. The Morning Brew logo appears subtly in the corner or overlay as the scene fades to black.",
+          "subject": "Young professional drinking coffee and smiling",
+          "consistencyNotes": "Beige sweater, dark hair, brand text",
+          "cameraMovement": "Medium shot holding steady then slight zoom out",
+          "lighting": "Consistent warm morning light, soft shadows",
+          "mood": "Content, satisfied, confident",
+          "prompt": "Cinematic shot of the same young professional in beige sweater taking a sip from a ceramic cup, smiling warmly at the camera. Warm lighting matches previous scenes. Text overlay 'Morning Brew' appears elegantly. Fade to black. 9:16 vertical format."
+        },
+        "profile": {
+          "characterIdentity": "One young professional, short dark hair, beige knit sweater. Keep the same appearance across scenes.",
+          "productAppearance": "Premium, small-batch coffee in a cream bag with an amber label.",
+          "brandElements": "Morning Brew; cream packaging, amber label, plain ceramic cup. Avoid inventing additional logos.",
+          "visualStyle": "Cinematic; warm amber highlights, natural textures, soft morning light."
+        },
+        "profileVersion": 2,
+        "finalPrompt": "Cinematic shot of the same young professional in beige sweater taking a sip from a ceramic cup, smiling warmly at the camera. Warm lighting matches previous scenes. Text overlay 'Morning Brew' appears elegantly. Fade to black. 9:16 vertical format.\n\nShared visual consistency instructions (guidance, not a guarantee):\nCharacter identity: One young professional, short dark hair, beige knit sweater. Keep the same appearance across scenes.\nProduct appearance: Premium, small-batch coffee in a cream bag with an amber label.\nBrand elements: Morning Brew; cream packaging, amber label, plain ceramic cup. Avoid inventing additional logos.\nVisual style: Cinematic; warm amber highlights, natural textures, soft morning light.\nScene consistency notes: Beige sweater, dark hair, brand text",
+        "aspectRatio": "9:16"
+      },
+      "provider": "wan3.0",
+      "mode": "live",
+      "status": "completed",
+      "resultUrl": "/examples/morning-brew/scene-3.mp4",
+      "localMediaPath": "/examples/morning-brew/scene-3.mp4",
+      "createdAt": "2026-10-17T15:45:47.096Z",
+      "startedAt": "2026-10-17T15:45:49.392Z",
+      "completedAt": "2026-10-17T15:48:22.487Z"
+    }
+  ],
+  "output": {
+    "id": "example-morning-brew-v1-cut",
+    "selectionKey": "8e5eb07b94735904fe4a3b44de6a233b8f1a646a658a87487f94793455f5c6b9",
+    "snapshot": {
+      "aspectRatio": "9:16",
+      "targetDuration": 15,
+      "scenes": [
+        {
+          "sceneId": "example-morning-brew-v1-scene-1",
+          "taskId": "example-morning-brew-v1-task-1",
+          "title": "Morning Light",
+          "plannedDuration": 5
+        },
+        {
+          "sceneId": "example-morning-brew-v1-scene-2",
+          "taskId": "example-morning-brew-v1-task-2",
+          "title": "The Pour Ritual",
+          "plannedDuration": 5
+        },
+        {
+          "sceneId": "example-morning-brew-v1-scene-3",
+          "taskId": "example-morning-brew-v1-task-3",
+          "title": "Brand Moment Sip",
+          "plannedDuration": 5
+        }
+      ]
+    },
+    "mode": "live",
+    "status": "completed",
+    "duration": 15,
+    "mediaPath": "/examples/morning-brew/first-cut.mp4"
+  }
+}
