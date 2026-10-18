@@ -1,14 +1,53 @@
 node_modules/
 .next/
+
+# Server environment and local credentials
 .env*
 !.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+.ssh/
+.aws/
+.npmrc
+.netrc
+
+# Local databases, journals and backups (keep SQL migrations tracked)
 *.db
-*.db-journal
-*.db-wal
-*.db-shm
+*.db-*
+*.db.*
+*.sqlite
+*.sqlite-*
+*.sqlite.*
+*.sqlite3
+*.sqlite3-*
+*.sqlite3.*
+backups/
+*.bak
+*.backup
+*.dump
+*.sql.gz
+*.sql.zip
+*.sql.bz2
+*.sql.xz
+
+# Logs and browser traces may contain prompts, headers or tokens
+logs/
+*.log
+*.log.*
+*.har
+
+# Generated output, test artifacts and editor files
 playwright-report/
 test-results/
 coverage/
+.cache/
 *.tsbuildinfo
+*.tmp
+*.swp
+*~
 .DS_Store
 .local-media/

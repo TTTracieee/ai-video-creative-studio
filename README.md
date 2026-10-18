@@ -2,7 +2,11 @@
 
 **Turn a marketing brief into a reviewable video draft.**
 
-[Demo](#see-it-in-action) · [Product workflow](#product-workflow) · [Quick start](#run-locally) · [Case study](PORTFOLIO_CASE_STUDY.md)
+[Demo](#see-it-in-action) · [My contribution](#my-contribution) · [Product workflow](#product-workflow) · [Quick start](#run-locally) · [Case study](PORTFOLIO_CASE_STUDY.md)
+
+An AIGC product portfolio for marketing teams: **plan scenes → generate and select versions → assemble a first cut → export MP4**.
+
+**Stack:** Next.js · TypeScript · Tailwind CSS · Prisma · SQLite · Zod · Provider adapters · FFmpeg
 
 ## See it in action
 
@@ -11,6 +15,12 @@
 **[Full demo · 67 seconds · MP4](docs/demo/frame-demo.mp4)** · [Product case study](PORTFOLIO_CASE_STUDY.md) · [Product decisions](PRODUCT_DECISIONS.md)
 
 Recorded in the working app with three previously generated Qwen / Wan clips. Editing, selection, assembly and export are real operations; this walkthrough makes no model calls.
+
+## My contribution
+
+- Defined the product problem, MVP priorities and cost constraints, then tested the workflow hands-on.
+- Used internal feedback to move from isolated generated clips to a project-level first cut, with clearer editing, saving and version selection.
+- Directed AI-assisted implementation, testing and portfolio documentation with Codex. External user research and time-saving claims remain unvalidated.
 
 ## Product workflow
 
@@ -53,8 +63,6 @@ Open **[localhost:3000](http://127.0.0.1:3000)** → **Morning Brew / Example**.
 **Live models:** [Qwen + Wan setup and costs](REAL_API_SETUP.md). **Other configuration / deployment:** [setup reference](docs/SETUP.md).
 
 ## Built and verified
-
-**Next.js · TypeScript · Tailwind CSS · Prisma · SQLite · Zod · Provider adapters · FFmpeg**
 
 Revision checks, immutable generation snapshots, recoverable task history, local media caching and password protection support the workflow. At the latest product iteration, **77 automated tests and 9 browser scenarios passed**, alongside type checks, lint, production build and recovery checks. [Executed tests and limits →](TEST_RESULTS.md)
 

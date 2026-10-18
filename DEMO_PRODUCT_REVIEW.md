@@ -95,14 +95,13 @@ Feedback 的补充问题：当前写文字后仍需打星才能保存（前后�
 7. 下一轮是否应先修有效编辑字段、去掉咖啡默认假设、使用真实封面及简化导出层级，再做少量观察式用户测试？哪些修改属于测试前必须修，哪些应留到观察后决定？
 8. 如果保留内部分析，是否应将真正的项目完成行为作为后续指标？当前 `project_exported` 只表示 JSON 导出，尚无 MP4 导出漏斗，不能拿它声称 First Cut 完成率。
 
-源码定位（用于复核事实，不是额外需求）：
+历史审查涉及的文件（以下相对链接打开当前版本；原审查基于 `620f9ca`，旧行号及当时的问题不代表当前实现）：
 
-- [共享默认值与 Prompt 组合](/Users/qiyongxi/lively/ai-video-creative-studio/src/lib/domain.ts:77)
-- [单镜头 Rewrite 的上下文](/Users/qiyongxi/lively/ai-video-creative-studio/src/lib/providers/qwen.ts:208)
-- [固定咖啡插图](/Users/qiyongxi/lively/ai-video-creative-studio/src/components/studio.tsx:79)
-- [评分/Feedback 的折叠界面](/Users/qiyongxi/lively/ai-video-creative-studio/src/components/generate-select.tsx:193)
-- [评分保存契约](/Users/qiyongxi/lively/ai-video-creative-studio/src/lib/service.ts:620)
-- [整体重建分镜](/Users/qiyongxi/lively/ai-video-creative-studio/src/lib/service.ts:264)
-- [初剪按钮与说明](/Users/qiyongxi/lively/ai-video-creative-studio/src/components/first-cut-preview.tsx:43)
-- [选片签名中的标题与规划时长](/Users/qiyongxi/lively/ai-video-creative-studio/src/lib/project-state.ts:23)
-- [现有测试记录](/Users/qiyongxi/lively/ai-video-creative-studio/TEST_RESULTS.md)
+- [共享默认值与 Prompt 组合](src/lib/domain.ts)
+- [单镜头 Rewrite 的上下文](src/lib/providers/qwen.ts)
+- [当时的固定咖啡插图所在组件](src/components/studio.tsx)
+- [当时的评分/Feedback 界面所在组件](src/components/generate-select.tsx)
+- [评分保存契约与整体重建分镜](src/lib/service.ts)
+- [初剪按钮与说明](src/components/first-cut-preview.tsx)
+- [选片签名](src/lib/project-state.ts)
+- [测试记录](TEST_RESULTS.md)
