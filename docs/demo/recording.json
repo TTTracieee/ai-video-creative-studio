@@ -1,0 +1,70 @@
+{
+  "recordedOn": "2026-10-19",
+  "durationSeconds": 67.041667,
+  "format": "H.264 MP4, 1280×896, 24 fps, silent walkthrough with English callouts",
+  "source": "Actual production UI in an isolated database; existing real Qwen/Wan example clips",
+  "noModelCalls": true,
+  "pageErrors": 0,
+  "verified": [
+    "structured edit enters Final Prompt",
+    "unified Save Plan persists",
+    "three real clip selections",
+    "actual FFmpeg first cut",
+    "15-second video playback",
+    "MP4 download and file header"
+  ],
+  "chapters": [
+    {
+      "at": 0,
+      "title": "FRAME / BRIEF TO FIRST CUT",
+      "detail": "A working video creation workspace, from plan to one exportable MP4."
+    },
+    {
+      "at": 3.09,
+      "title": "01 / START WITH A MARKETING BRIEF",
+      "detail": "Walkthrough of a saved project with previously generated Qwen / Wan clips."
+    },
+    {
+      "at": 9.66,
+      "title": "02 / EDIT THE SHOT, NOT A WALL OF PROMPT TEXT",
+      "detail": "Structured scene fields compose the exact prompt for the next generation."
+    },
+    {
+      "at": 18.69,
+      "title": "03 / KEEP A SHARED CREATIVE DIRECTION",
+      "detail": "Identity, product, brand and style guide future generations. Results can vary."
+    },
+    {
+      "at": 23.4,
+      "title": "SAVE THE WHOLE PLAN IN ONE PLACE",
+      "detail": "Edits guide the next generation. Previously generated clips stay unchanged."
+    },
+    {
+      "at": 26.43,
+      "title": "04 / CHOOSE A VERSION FOR EACH SCENE",
+      "detail": "These real clips were generated earlier. This recording makes no model calls."
+    },
+    {
+      "at": 38.58,
+      "title": "05 / BUILD ONE FIRST CUT",
+      "detail": "Selected clips are assembled in scene order with their original sound."
+    },
+    {
+      "at": 44.64,
+      "title": "WATCH THE PROJECT AS A WHOLE",
+      "detail": "Three selected scenes. A real 15-second first cut, ready to review."
+    },
+    {
+      "at": 60.06,
+      "title": "06 / EXPORT THE MP4",
+      "detail": "One downloadable file. Revisit the plan or replace a clip when you want to iterate."
+    },
+    {
+      "at": 63.66,
+      "title": "FRAME / PLAN. CHOOSE. PREVIEW. EXPORT.",
+      "detail": "Next.js · TypeScript · Prisma / SQLite · Provider adapters · Local FFmpeg"
+    }
+  ],
+  "mp4Bytes": 1506014,
+  "gifBytes": 3341897
+}

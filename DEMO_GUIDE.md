@@ -1,4 +1,26 @@
-# 三分钟 Demo 指南
+# Demo 素材与现场演示指南
+
+## 已录制的 GitHub Demo（2026-10-19）
+
+- [完整操作视频](docs/demo/frame-demo.mp4)：67秒、约1.4MB，英文步骤提示，静音录屏；复用此前生成的真实 Qwen/Wan 片段，实际编辑、保存、选片、FFmpeg合并和下载MP4。
+- [README短动图](docs/demo/preview.gif)：20秒、约3.2MB，从完整视频摘取关键操作；不是另一套界面原型。
+- [封面](docs/demo/poster.jpg) / [录制验证与章节](docs/demo/recording.json)。
+
+录制在临时数据库和本地3300端口的生产实例中进行，不修改日常项目。服务端使用Mock配置并清空外部模型密钥，浏览器额外阻止生成/重试/分镜请求；仅复用仓库已有真实媒体。录制字幕是演示提示，不是新增的应用功能。
+
+重新录制：
+
+```bash
+npm run build
+npx playwright install ffmpeg
+node scripts/record-demo.mjs
+```
+
+脚本优先使用macOS已有Google Chrome；没有时先运行 `npx playwright install chromium`。需要系统FFmpeg/ffprobe，输出会覆盖docs/demo中的素材。录制验证实际Final Prompt映射、保存、三次选片、初剪播放与有效MP4下载；自动清理临时数据库、原始录屏和合并文件。
+
+README使用仓库内GIF直接展示，并链接完整MP4。参见[GitHub支持的媒体格式说明](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files)。保留仓库现有私有权限；外部访客需要仓库访问权。
+
+## 三分钟现场演示
 
 演示前按 README 启动，确认 FFmpeg/ffprobe 可用。首页的 Morning Brew Example 已有三个真实 Wan 3.0 片段和约 15 秒 First Cut；打开、播放和下载不调用模型。不要在演示时为展示动画重新生成付费内容。
 
