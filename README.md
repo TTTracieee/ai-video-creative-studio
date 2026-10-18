@@ -2,7 +2,7 @@
 
 **Turn a marketing brief into a reviewable video draft.**
 
-**Brief → Plan → Generate & Select → Preview & Export**
+[Demo](#see-it-in-action) · [Product workflow](#product-workflow) · [Quick start](#run-locally) · [Case study](PORTFOLIO_CASE_STUDY.md)
 
 ## See it in action
 
@@ -12,11 +12,25 @@
 
 Recorded in the working app with three previously generated Qwen / Wan clips. Editing, selection, assembly and export are real operations; this walkthrough makes no model calls.
 
-## What you can do
+## Product workflow
 
-- **Plan:** edit the brief, five structured scene fields and shared Creative Direction; save them together. Preview the exact generation prompt or use an explicit advanced override.
-- **Generate & select:** create individual clips, compare attempts and choose one version per scene. New results preserve the current selection.
-- **Preview & export:** assemble selected clips into one MP4. Replace a clip or change the order to update the first cut; editing the plan leaves existing videos intact.
+### 01 · Plan the story
+
+Edit the brief, structured scenes and shared Creative Direction in one workspace. Preview the exact generation prompt and save the whole plan together.
+
+[![Plan workspace with editable scene fields, shared Creative Direction and a single Save Plan action](docs/images/workflow-plan.png)](docs/images/workflow-plan.png)
+
+### 02 · Generate and choose
+
+Keep attempts attached to each scene and choose one version for the cut. Generating another version preserves your current selection.
+
+[![Generate and Select workspace showing a real Wan clip selected for the first cut](docs/images/workflow-select.png)](docs/images/workflow-select.png)
+
+### 03 · Preview and export
+
+Watch the selected scenes as one first cut, then export an MP4. Update the cut when your chosen clips or their order change.
+
+[![Preview and Export workspace with three selected scenes, the complete video and Export MP4](docs/images/workflow-export.png)](docs/images/workflow-export.png)
 
 The bundled Example contains three real Wan clips and a saved ~15-second first cut. Open it without API keys or model calls. New projects default to clearly identified template / test providers; live Qwen + Wan adapters are available.
 
